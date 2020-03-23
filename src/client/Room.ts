@@ -1,5 +1,5 @@
 import Peer from "../common/Peer";
-import { CUpdatePeerCellPosition, CUpdatePeerMood, SUpdatePeerMood, IRemovePeer, SSpawnPeerCell, SUpdatePeerCellPosition, IConnected } from "../common/Messages";
+import { CUpdatePeerCellPosition, IRemovePeer, SSpawnPeerCell, SUpdatePeerCellPosition, IConnected } from "../common/Messages";
 import { Point } from "../common/Structures";
 import SocketHandler from "./SocketHandler";
 import RoomRenderer from "./RoomRenderer";
@@ -51,7 +51,7 @@ export default class Room {
         socketId: message.ownerId,
         isOwner: message.isOwner,
         position: message.position,
-        mood: message.mood
+        audioRange: message.audioRange
       });
 
       const peerController = this.setupPeerController(message.ownerId, { peer });
@@ -116,15 +116,27 @@ export default class Room {
       if (socketId !== this.#ownerSocketId) {
         const peerController = this.#peerControllers[socketId];
         const distanceToPeer = getManhattanDistance(ownerPosition, peerController.peer.position);
-        const gain = this.getGainFromDistance(distanceToPeer);
+        const gain = this.getGainFromDistance(distanceToPeer, peerController.peer.audioRange);
 
         peerController.mediaController.setGain(gain);
       }
     }
   }
 
-  private getGainFromDistance(distance: number) {
-    return Math.max(-1 * Math.log10(distance) * 50 + 150, 0);
+  private getGainFromDistance(distance: number, audioRange: number) {
+    if (distance < audioRange) {
+      return 100;
+    } else {
+      return Math.max(0, -0.005 * audioRange * (distance - audioRange) ** 2 + 100);
+      // Linear algorithm
+      // return 100 * (1 - (distance / audioRange));
+    }
   }
+
+  // Logarithmic, but non-adjustible
+  // TODO: Make adjustable based on audio range
+  // private getGainFromDistance(distance: number) {
+  //   return Math.max(-1 * Math.log10(distance) * 50 + 150, 0);
+  // }
 
 }

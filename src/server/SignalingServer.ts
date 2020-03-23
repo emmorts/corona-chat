@@ -4,7 +4,7 @@ import * as ws from "ws";
 import config from "common/config";
 import { P2PSocket } from "server/P2PSocket";
 import MessageHandler from "server/MessageHandler";
-import { SUpdatePeerCellPosition, CUpdatePeerCellPosition, CUpdatePeerMood, SUpdatePeerMood, CSpawnPeerCell, IRemovePeer, IPing, IConnected } from 'common/Messages';
+import { SUpdatePeerCellPosition, CUpdatePeerCellPosition, CSpawnPeerCell, IRemovePeer, IPing, IConnected, SSpawnPeerCell } from 'common/Messages';
 import Peer from 'common/Peer';
 
 type P2PChannelCollection = {
@@ -51,7 +51,7 @@ export default class SignalingServer {
         x: 50 + ~~(Math.random() * 300),
         y: 50 + ~~(Math.random() * 500)
       },
-      mood: "neutral"
+      audioRange: 300
     });
 
     for (const peerId in this.#sockets) {
@@ -62,8 +62,8 @@ export default class SignalingServer {
           ownerId: this.#sockets[peerId].peerController.socketId,
           name: this.#sockets[peerId].peerController.name,
           position: this.#sockets[peerId].peerController.position,
-          mood: this.#sockets[peerId].peerController.mood
-        })
+          audioRange: this.#sockets[peerId].peerController.audioRange
+        } as SSpawnPeerCell)
       }
     }
 
@@ -74,8 +74,8 @@ export default class SignalingServer {
         ownerId: peerController.socketId,
         name: peerController.name,
         position: peerController.position,
-        mood: peerController.mood
-      });
+        audioRange: peerController.audioRange
+      } as SSpawnPeerCell);
     }
 
     socket.peerController = peerController;
@@ -93,22 +93,6 @@ export default class SignalingServer {
         }
 
         this.#sockets[peerId].messageHandler.send(messsage)
-      }
-    }
-  }
-
-  private handleUpdatePeerMood(socket: P2PSocket, receivedMessage: CUpdatePeerMood) {
-    this.#sockets[socket.id].peerController.mood = receivedMessage.mood;
-
-    for (const peerId in this.#sockets) {
-      if (peerId !== socket.id) {
-        const message: SUpdatePeerMood = {
-          type: "updatePeerMood",
-          socketId: socket.id,
-          mood: receivedMessage.mood
-        }
-
-        this.#sockets[peerId].messageHandler.send(message)
       }
     }
   }
@@ -195,7 +179,6 @@ export default class SignalingServer {
     socket.messageHandler.on("joinChannel", message => this.handleJoinChannel(socket, message));
     socket.messageHandler.on("relayICECandidate", message => this.handleRelayICECandidate(socket, message));
     socket.messageHandler.on("relaySessionDescription", message => this.handleRelaySessionDescription(socket, message));
-    socket.messageHandler.on("updatePeerMood", message => this.handleUpdatePeerMood(socket, message));
 
     socket.on("message", (message) => {
       socket.messageHandler.handleMessage(message);

@@ -50,7 +50,7 @@ export default class PeerGraphicsController extends EventEmitter<PeerGraphicsEve
 
     if (peer.isOwner) {
       this.#cellAudioRangeSprite = drawPeerAudioRange({
-        audioRange: 300,
+        audioRange: peer.audioRange,
         position: peer.position,
       });
 

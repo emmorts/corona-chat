@@ -11,7 +11,7 @@ const ICE_SERVERS: RTCIceServer[] = [{
   credential: "qwqwqw"
 }];
 
-type P2PChannelEventType = "localStreamAdded" | "peerStreamAdded";
+type P2PChannelEventType = "localStreamAdded" | "peerStreamAdded" | "peerStreamRemoved";
 
 export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
   #defaultChannel = "corona";
@@ -158,7 +158,7 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
     console.log(`Removing peer '${peerId}'`);
 
     if (peerId in this.#peerMediaStreams) {
-      this.#peerMediaStreams[peerId].remove();
+      this.fire("peerStreamRemoved", peerId);
     }
 
     if (peerId in this.#peers) {

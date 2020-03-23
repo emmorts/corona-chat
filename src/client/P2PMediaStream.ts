@@ -38,6 +38,16 @@ export default class P2PMediaStream extends EventEmitter<P2PMediaStreamEventType
     return this.#mediaElement;
   }
 
+  setMute(mute: boolean) {
+    if (mute) {
+      this.#mediaElement.setAttribute("muted", "");
+      this.#mediaElement.muted = true;
+    } else {
+      this.#mediaElement.removeAttribute("muted");
+      this.#mediaElement.muted = false;
+    }
+  }
+
   getUserMedia(): Promise<MediaStream> {
     return new Promise((resolve, reject) => {
       const userMediaPromise = this._getUserMedia();

@@ -5,24 +5,20 @@ export default class Peer {
   #socketId: string;
   #position: Point;
   #isOwner: boolean;
-  #mood: string
+  #audioRange: number;
 
   constructor(options: {
     name: string,
     socketId: string,
     position: Point,
-    mood?: string,
+    audioRange: number,
     isOwner?: boolean
   }) {
     this.#name = options.name;
     this.#socketId = options.socketId;
     this.#position = options.position;
     this.#isOwner = options.isOwner;
-    this.#mood = options.mood;
-  }
-
-  get isInstantiated() {
-    return !!this.#socketId;
+    this.#audioRange = options.audioRange;
   }
 
   get name() {
@@ -46,11 +42,11 @@ export default class Peer {
     this.#position.y = point.y;
   }
 
-  get mood() {
-    return this.#mood;
+  get audioRange() {
+    return this.#audioRange;
   }
 
-  set mood(mood) {
-    this.#mood = mood;
+  set audioRange(audioRange) {
+    this.#audioRange = audioRange;
   }
 }

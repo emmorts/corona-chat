@@ -9,11 +9,11 @@ export interface SSpawnPeerCell {
   ownerId: string,
   isOwner: boolean,
   name: string,
+  audioRange: number,
   position: {
     x: number,
     y: number
   }
-  mood: string
 }
 
 export interface CUpdatePeerCellPosition {
@@ -44,17 +44,6 @@ export interface IPing {
 
 export interface IPong {
   type: "pong"
-}
-
-export interface CUpdatePeerMood {
-  type: "updatePeerMood",
-  mood: string
-}
-
-export interface SUpdatePeerMood {
-  type: "updatePeerMood",
-  socketId: string,
-  mood: string
 }
 
 export interface IConnected {
