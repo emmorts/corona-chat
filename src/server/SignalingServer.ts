@@ -22,7 +22,7 @@ export default class SignalingServer {
   #socketServer: ws.Server;
   #channels: P2PChannelCollection = {};
   #sockets: P2PSocketCollection = {};
-  #socketHeartbeatIntervals: { [socketId: string]: NodeJS.Timeout };
+  #socketHeartbeatIntervals: { [socketId: string]: NodeJS.Timeout } = {};
 
   constructor(server: Server) {
     this.#httpServer = server;
