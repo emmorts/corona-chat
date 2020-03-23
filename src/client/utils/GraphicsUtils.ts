@@ -115,7 +115,7 @@ export function drawPeerAudioRange(options: DrawPeerAudioRangeOptions): pixi.Spr
   offscreenCanvasContext.beginPath();
   offscreenCanvasContext.setLineDash([5, 5]);
   offscreenCanvasContext.arc(options.audioRange, options.audioRange, options.audioRange, 0, Math.PI * 2);
-  offscreenCanvasContext.strokeStyle = "#" + AUDIO_RANGE_OUTLINE_COLOR.toString(16).padStart(6, "0") + AUDIO_RANGE_OUTLINE_ALPHA.toString(16).padStart(6, "0")
+  offscreenCanvasContext.strokeStyle = "#" + AUDIO_RANGE_OUTLINE_COLOR.toString(16).padStart(6, "0") + AUDIO_RANGE_OUTLINE_ALPHA.toString(16).padStart(2, "0")
   offscreenCanvasContext.closePath();
   offscreenCanvasContext.stroke();
 
