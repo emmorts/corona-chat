@@ -22,7 +22,7 @@ export default class SignalingServer {
   #socketServer: ws.Server;
   #channels: P2PChannelCollection = {};
   #sockets: P2PSocketCollection = {};
-  #heartbeatInterval: NodeJS.Timeout;
+  #socketHeartbeatIntervals: { [socketId: string]: NodeJS.Timeout };
 
   constructor(server: Server) {
     this.#httpServer = server;
@@ -48,8 +48,8 @@ export default class SignalingServer {
       name: message.name,
       socketId: socket.id,
       position: {
-        x: ~~(Math.random() * 500),
-        y: ~~(Math.random() * 500)
+        x: 50 + ~~(Math.random() * 300),
+        y: 50 + ~~(Math.random() * 500)
       },
       mood: "neutral"
     });
@@ -149,9 +149,9 @@ export default class SignalingServer {
     console.log(`Socket '${socket.id}' joining channel '${channel}'`);
 
     if (channel in socket.channels) {
-        console.log(`Socket '${socket.id}' is already in channel '${channel}'`);
+      console.log(`Socket '${socket.id}' is already in channel '${channel}'`);
 
-        return;
+      return;
     }
 
     if (!(channel in this.#channels)) {
@@ -210,7 +210,7 @@ export default class SignalingServer {
   }
 
   private startHeartbeat(socket: P2PSocket) {
-    this.#heartbeatInterval = setInterval(() => {
+    this.#socketHeartbeatIntervals[socket.id] = setInterval(() => {
       socket.messageHandler.send({
         type: "ping"
       } as IPing);
@@ -239,6 +239,10 @@ export default class SignalingServer {
 
   private removePeer(socket: P2PSocket, channel: string) {
     console.log(`Removing socket ${socket.id} from all channels.`);
+
+    if (this.#socketHeartbeatIntervals[socket.id]) {
+      clearInterval(this.#socketHeartbeatIntervals[socket.id]);
+    }
 
     if (!(channel in socket.channels)) {
       console.log(`'${socket.id}' was not found in channel '${channel}'`);

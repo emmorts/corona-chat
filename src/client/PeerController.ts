@@ -52,6 +52,11 @@ export default class PeerController {
     this.updateCameraPosition();
   }
 
+  destroy() {
+    this.#graphicsController.destroy();
+    this.#mediaController.destroy();
+  }
+
   private updateCameraPosition() {
     if (this.#mediaController?.mediaElement) {
       this.#mediaController.mediaElement.style.top = `${this.peer.position.y - 70}px`;

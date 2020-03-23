@@ -37,8 +37,6 @@ export default class RoomRenderer extends EventEmitter<RendererEventType> {
   }
 
   removePeer(socketId: string) {
-    this.#peerGraphics[socketId].destroy();
-
     delete this.#peerGraphics[socketId];
   }
 

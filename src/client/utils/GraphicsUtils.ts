@@ -7,6 +7,7 @@ const OWNER_CELL_OUTLINE_COLOR = 0x003300;
 const CELL_COLOR = 0xFFA500;
 const CELL_OUTLINE_COLOR = 0x003300;
 const AUDIO_RANGE_OUTLINE_COLOR = 0x008000;
+const AUDIO_RANGE_OUTLINE_ALPHA = 0x99;
 
 type DraggableGraphics = pixi.Graphics & {
   data: pixi.interaction.InteractionData;
@@ -114,7 +115,7 @@ export function drawPeerAudioRange(options: DrawPeerAudioRangeOptions): pixi.Spr
   offscreenCanvasContext.beginPath();
   offscreenCanvasContext.setLineDash([5, 5]);
   offscreenCanvasContext.arc(options.audioRange, options.audioRange, options.audioRange, 0, Math.PI * 2);
-  offscreenCanvasContext.strokeStyle = 'rgba(0, 128, 0, 0.6)';
+  offscreenCanvasContext.strokeStyle = "#" + AUDIO_RANGE_OUTLINE_COLOR.toString(16).padStart(6, "0") + AUDIO_RANGE_OUTLINE_ALPHA.toString(16).padStart(6, "0")
   offscreenCanvasContext.closePath();
   offscreenCanvasContext.stroke();
 

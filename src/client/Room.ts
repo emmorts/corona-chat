@@ -65,6 +65,8 @@ export default class Room {
 
     this.#socketHandler.on("removePeer", (message: IRemovePeer) => {
       if (this.#peerControllers[message.socketId]) {
+        this.#peerControllers[message.socketId].destroy();
+
         delete this.#peerControllers[message.socketId];
       }
 

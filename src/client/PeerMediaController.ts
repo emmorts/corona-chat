@@ -42,6 +42,12 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     this.#gainFilter.gain.value = value;
   }
 
+  destroy() {
+    if (this.#mediaStream) {
+      this.#mediaStream.remove();
+    }
+  }
+
   private setupMediaStream(isOwner: boolean) {
     if (!isOwner) {
       this.addAudioFilters();
