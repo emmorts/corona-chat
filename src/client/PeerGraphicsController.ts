@@ -7,16 +7,14 @@ import { Point } from "../common/Structures";
 type PeerGraphicsEventType = "cellMove";
 
 export default class PeerGraphicsController extends EventEmitter<PeerGraphicsEventType> {
+  #displayObjects: pixi.DisplayObject[] = [];
+
   #cellGraphics: pixi.Graphics;
   #cellNameText: pixi.Text;
   #cellAudioRangeSprite: pixi.Sprite;
 
   get displayObjects(): pixi.DisplayObject[] {
-    return [
-      this.#cellGraphics,
-      this.#cellNameText,
-      this.#cellAudioRangeSprite
-    ]
+    return this.#displayObjects;
   }
 
   get cellPosition() {
@@ -41,16 +39,22 @@ export default class PeerGraphicsController extends EventEmitter<PeerGraphicsEve
       onDragEnd: position => this.fire("cellMove", position)
     });
 
+    this.#displayObjects.push(this.#cellGraphics);
+
     this.#cellNameText = drawPeerCellName({
       name: peer.name,
       position: peer.position
     });
+
+    this.#displayObjects.push(this.#cellNameText);
 
     if (peer.isOwner) {
       this.#cellAudioRangeSprite = drawPeerAudioRange({
         audioRange: 300,
         position: peer.position,
       });
+
+      this.#displayObjects.push(this.#cellAudioRangeSprite);
     }
   }
 
