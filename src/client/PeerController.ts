@@ -1,20 +1,16 @@
 import Peer from "../common/Peer";
 import P2PMediaStream from "./P2PMediaStream";
+import PeerMediaController from "./PeerMediaController";
+import PeerGraphicsController from "./PeerGraphicsController";
+import { Point } from "../common/Structures";
 
 export default class PeerController {
   #peer: Peer;
-  #audioContext: AudioContext = new AudioContext();
-  #mediaStream: P2PMediaStream;
-
-  #gainFilter = this.#audioContext.createGain();
-  #filters: AudioNode[] = [
-    this.#gainFilter
-  ];
+  #mediaController: PeerMediaController = new PeerMediaController();
+  #graphicsController: PeerGraphicsController = new PeerGraphicsController();
 
   constructor() {
-    this.#filters.push(...[
-      this.#audioContext.createGain()
-    ]);
+    this.#mediaController.on("mediaStreamStarted", () => this.updateCameraPosition());
   }
 
   get peer() {
@@ -25,58 +21,41 @@ export default class PeerController {
     this.#peer = peer;
   }
 
+  get mediaController() {
+    return this.#mediaController;
+  }
+
+  get graphicsController() {
+    return this.#graphicsController;
+  }
+
   get hasMediaStream() {
-    return !!this.#mediaStream?.mediaStream;
+    return this.#mediaController.hasMediaStream;
   }
 
   get nativeMediaStream() {
-    return this.#mediaStream?.mediaStream;
+    return this.#mediaController.nativeMediaStream;
   }
 
   get mediaStream() {
-    return this.#mediaStream;
+    return this.#mediaController.mediaStream;
   }
 
   set mediaStream(p2pMediaStream: P2PMediaStream) {
-    this.#mediaStream = p2pMediaStream;
+    this.#mediaController.setMediaStream(p2pMediaStream, this.peer.isOwner);
+  }
 
-    if (this.peer && !this.peer.isOwner) {
-      if (this.#mediaStream.mediaStream) {
-        this.addAudioFilters();
-      } else {
-        this.#mediaStream.once("started", () => this.addAudioFilters());
-      }
+  updatePosition(position: Point) {
+    this.graphicsController.cellPosition = position;
+    this.#peer.position = position;
+
+    this.updateCameraPosition();
+  }
+
+  private updateCameraPosition() {
+    if (this.#mediaController?.mediaElement) {
+      this.#mediaController.mediaElement.style.top = `${this.peer.position.y - 70}px`;
+      this.#mediaController.mediaElement.style.left = `${this.peer.position.x + 55}px`;
     }
-  }
-
-  setGain(value: number) {
-    this.#mediaStream.mediaElement.muted = value > 0;
-
-    this.#gainFilter.gain.value = value;
-  }
-
-  updateCameraPosition() {
-    if (this.#mediaStream?.mediaElement) {
-      this.#mediaStream.mediaElement.style.top = `${this.peer.position.y - 70}px`;
-      this.#mediaStream.mediaElement.style.left = `${this.peer.position.x + 55}px`;
-    }
-  }
-
-  private addAudioFilters() {
-    const source = this.#audioContext.createMediaStreamSource(this.nativeMediaStream);
-
-    this.connectAudioFilters(source);
-  }
-
-  private connectAudioFilters(source: MediaStreamAudioSourceNode) {
-    const filterCount = this.#filters.length;
-
-    this.#filters.reduce((previousFilterNode: AudioNode, currentFilterNode: AudioNode, index: number) => {
-      if (index === filterCount - 1) {
-        return previousFilterNode.connect(this.#audioContext.destination);
-      } else {
-        return previousFilterNode.connect(currentFilterNode);
-      }
-    }, source);
   }
 }

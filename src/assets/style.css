@@ -87,15 +87,9 @@ video {
     }
 
 .room {
-  font-size: 0;
-}
-
-.room .room-canvas {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  left: 0;
+  width: 100%;
+  background: rgb(56, 64, 78) url(./images/tile.png) 56px 56px;
+  position: relative;
 }
 
 .selector {

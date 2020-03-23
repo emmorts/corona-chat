@@ -20,21 +20,16 @@ export default class Room {
     this.#renderer = renderer;
 
     this.#renderer.on("peerCellMove", (position: Point) => this.handlePlayerCellMove(position));
-    this.#renderer.on("updatePeerMood", (mood: string) => this.sendUpdatePeerMoodMessage(mood));
 
     this.setupSocketHandlerEvents();
   }
 
   addLocalStream(mediaStream: P2PMediaStream) {
     this.setupPeerController(this.#ownerSocketId, { mediaStream });
-
-    this.#peerControllers[this.#ownerSocketId].updateCameraPosition();
   }
 
   addPeerStream(socketId: string, mediaStream: P2PMediaStream) {
     this.setupPeerController(socketId, { mediaStream });
-
-    this.#peerControllers[socketId].updateCameraPosition();
   }
 
   private setupSocketHandlerEvents() {
@@ -44,14 +39,6 @@ export default class Room {
       message.peers.forEach(peerSocketId => {
         this.setupPeerController(peerSocketId);
       });
-    })
-
-    this.#socketHandler.on("removePeer", (message: IRemovePeer) => {
-      if (this.#peerControllers[message.socketId]) {
-        delete this.#peerControllers[message.socketId];
-      }
-
-      this.#renderer.removePeer(message.socketId);
     });
   
     this.#socketHandler.on("spawnPeerCell", (message: SSpawnPeerCell) => {
@@ -67,23 +54,27 @@ export default class Room {
         mood: message.mood
       });
 
-      this.#renderer.addPeer(peer);
-      this.setupPeerController(message.ownerId, { peer });
+      const peerController = this.setupPeerController(message.ownerId, { peer });
+
+      this.#renderer.addPeer(peer, peerController.graphicsController);
     });
   
     this.#socketHandler.on("updatePeerCellPosition", (message: SUpdatePeerCellPosition) => {
-      this.#renderer.updatePeerPosition(message.socketId, message.position);
+      this.#peerControllers[message.socketId].updatePosition(message.position);
+    });
 
-      this.#peerControllers[message.socketId].updateCameraPosition();
-      });
+    this.#socketHandler.on("removePeer", (message: IRemovePeer) => {
+      if (this.#peerControllers[message.socketId]) {
+        delete this.#peerControllers[message.socketId];
+      }
 
-    this.#socketHandler.on("updatePeerMood", (message: SUpdatePeerMood) => {
-      this.#renderer.updatePeerMood(message.socketId, message.mood);
+      this.#renderer.removePeer(message.socketId);
     });
   }
 
   private handlePlayerCellMove(position: Point) {
-    this.updateCameraPosition(position);
+    this.#peerControllers[this.#ownerSocketId].updatePosition(position);
+
     this.updatePeerGains();
     this.sendUpdatePeerPositionMessage(position);
   }
@@ -92,15 +83,6 @@ export default class Room {
     const message: CUpdatePeerCellPosition = {
       type: "updatePeerCellPosition",
       position
-    };
-
-    this.#socketHandler.send(message);
-  }
-
-  private sendUpdatePeerMoodMessage(mood: string) {
-    const message: CUpdatePeerMood = {
-      type: "updatePeerMood",
-      mood
     };
 
     this.#socketHandler.send(message);
@@ -121,12 +103,8 @@ export default class Room {
     if (options?.mediaStream) {
       this.#peerControllers[socketId].mediaStream = options.mediaStream;
     }
-  }
 
-  private updateCameraPosition(position: Point) {
-    const ownerPeerController = this.#peerControllers[this.#ownerSocketId];
-
-    ownerPeerController.updateCameraPosition();
+    return this.#peerControllers[socketId];
   }
 
   private updatePeerGains() {
@@ -138,7 +116,7 @@ export default class Room {
         const distanceToPeer = getManhattanDistance(ownerPosition, peerController.peer.position);
         const gain = this.getGainFromDistance(distanceToPeer);
 
-        peerController.setGain(gain);
+        peerController.mediaController.setGain(gain);
       }
     }
   }

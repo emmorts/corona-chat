@@ -1,7 +1,6 @@
 import adapter from "webrtc-adapter";
 import SocketHandler from "./SocketHandler";
 import P2PChannel from "./P2PChannel";
-import { createCanvas } from "./utils/CanvasUtils";
 import { createLogin } from "./utils/LoginUtils";
 import Room from "./Room";
 import { CSpawnPeerCell } from "../common/Messages";
@@ -12,14 +11,11 @@ createLogin(username => {
   const socketHandler = new SocketHandler();
   const channel = new P2PChannel(socketHandler);
   
-  const canvasElement = createCanvas();
-  const renderer = new RoomRenderer(canvasElement);
+  const renderer = new RoomRenderer();
   const room = new Room(socketHandler, renderer);
 
   channel.on("localStreamAdded", (stream: P2PMediaStream) => {
     room.addLocalStream(stream);
-
-    renderer.start();
   });
   channel.on("peerStreamAdded", (socketId: string, stream: P2PMediaStream) => room.addPeerStream(socketId, stream));
 
