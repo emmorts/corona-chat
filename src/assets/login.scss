@@ -1,16 +1,3 @@
-body {
-  font-family: 'Open Sans', sans-serif;
-  overflow: hidden;
-  margin: 0;
-  padding: 0;
-}
-
-video {
-  position: absolute;
-  z-index: 1;
-  height: 140px;
-}
-
 .login {
   position: absolute;
   top: 0;
@@ -19,8 +6,8 @@ video {
   right: 0;
   background-color: rgba(255, 255, 255, 0.7);
   z-index: 2;
-}
-  .login-content {
+
+  &-content {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -33,9 +20,8 @@ video {
     border-radius: 5px;
     background-color: rgba(255, 255, 255, 0.8);
     font-size: 0;
-  }
 
-    .login-content .user-name {
+    .user-name {
       display: inline-block;
       box-sizing: border-box;
       vertical-align: middle;
@@ -48,14 +34,14 @@ video {
       border-right-width: 0;
       border-radius: 3px 0 0 3px;
       transition: border-color 0.1s ease-in-out;
+
+      &:focus {
+        outline: none;
+        border-color: rgb(200, 200, 200);
+      }
     }
 
-    .login-content .user-name:focus {
-      outline: none;
-      border-color: rgb(200, 200, 200);
-    }
-
-    .login-content .join-button {
+    .join-button {
       display: inline-block;
       vertical-align: middle;
       box-sizing: border-box;
@@ -72,28 +58,20 @@ video {
       border-color: rgb(1, 163, 131);
       border-style: solid;
       transition: background-color 0.1s ease-in-out, border-color 0.1s ease-in-out;
+
+      &:hover {
+        background-color: rgb(52, 214, 182);
+        border-color: rgb(26, 188, 156);
+        cursor: pointer;
+      }
+
+      &:disabled {
+        background-color: rgb(192, 192, 192);
+        border-color: rgb(200, 200, 200);
+        cursor: default;
+      }
     }
 
-    .login-content .join-button:hover {
-      background-color: rgb(52, 214, 182);
-      border-color: rgb(26, 188, 156);
-      cursor: pointer;
-    }
+  }
 
-    .login-content .join-button:disabled {
-      background-color: rgb(192, 192, 192);
-      border-color: rgb(200, 200, 200);
-      cursor: default;
-    }
-
-.room {
-  width: 100%;
-  background: rgb(56, 64, 78) url(./images/tile.png) 56px 56px;
-  position: relative;
-}
-
-.selector {
-  z-index: 1;
-  visibility: hidden;
-  position: absolute
 }

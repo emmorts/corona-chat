@@ -69,9 +69,6 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     this.#mediaStream.setMute(value === 0);
 
     this.#gainFilter.gain.setValueAtTime(gainValue, this.#audioContext.currentTime);
-    this.#gainFilter.gain.value = value;
-
-    console.log(`Setting gain to ${gainValue}`);
   }
 
   destroy() {
@@ -101,24 +98,6 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     const filteredMediaStreamTrack = streamDestination.stream.getAudioTracks()[0];
 
     return filteredMediaStreamTrack;
-  }
-
-  private addAudioFilters(stream: MediaStream): MediaStream {
-    const audioTrack = stream.getAudioTracks()[0];
-
-    const streamSource = this.#audioContext.createMediaStreamSource(new MediaStream([ audioTrack ]));
-    const streamDestination = this.#audioContext.createMediaStreamDestination();
-
-    this.connectAudioFilters(streamSource, [...this.#filters, streamDestination]);
-
-    this.#gainFilter.gain.value = 2;
-
-    const filteredMediaStreamTrack = streamDestination.stream.getAudioTracks()[0];
-
-    stream.removeTrack(audioTrack);
-    stream.addTrack(filteredMediaStreamTrack);
-
-    return stream;
   }
 
   private connectAudioFilters(source: MediaStreamAudioSourceNode, filters: AudioNode[]) {

@@ -7,6 +7,7 @@ import { P2PSocket } from "server/P2PSocket";
 import MessageHandler from "server/MessageHandler";
 import * as Message from "common/Messages";
 import { SocketMessageType } from "common/SocketMessageType";
+import Logger from "common/Logger";
 
 type P2PChannelCollection = {
   [channelName: string]: {
@@ -33,14 +34,14 @@ export default class SignalingServer {
     const port = process.env.PORT || config.socketServerPort;
 
     this.#httpServer.listen(port, () => {
-      console.log(`HTTP server running on ${port} port.`);
+      Logger.info(`HTTP server running on ${port} port.`);
 
       this.#socketServer = new ws.Server({ server: this.#httpServer });
 
       this.#socketServer.on("connection", this.handleSocketConnected.bind(this));
       this.#socketServer.on("error", this.handleSocketConnectionError.bind(this));
 
-      console.log(`Socket server has been initialized.`);
+      Logger.info(`Socket server has been initialized.`);
     });
   }
 
@@ -101,7 +102,7 @@ export default class SignalingServer {
   private handleRelayICECandidate(socket: P2PSocket, message: Message.CIceCandidate) {
     const { socketId, iceCandidate } = message;
 
-    console.log(`Socket '${socket.id}' relaying ICE candidate to '${socketId}'`)
+    Logger.trace(`Socket '${socket.id}' relaying ICE candidate to '${socketId}'`)
 
     if (socketId in this.#sockets) {
       this.#sockets[socketId].messageHandler.send({
@@ -115,7 +116,7 @@ export default class SignalingServer {
   private handleRelaySessionDescription(socket: P2PSocket, message: Message.CSessionDescription) {
     const { socketId, sessionDescription } = message;
 
-    console.log(`Socket '${socket.id}' relaying session description to '${socketId}'`)
+    Logger.trace(`Socket '${socket.id}' relaying session description to '${socketId}'`)
 
     if (socketId in this.#sockets) {
       this.#sockets[socketId].messageHandler.send({
@@ -129,10 +130,10 @@ export default class SignalingServer {
   private handleJoinChannel(socket: P2PSocket, message: Message.CJoinChannel) {
     const { channel } = message;
 
-    console.log(`Socket '${socket.id}' joining channel '${channel}'`);
+    Logger.trace(`Socket '${socket.id}' joining channel '${channel}'`);
 
     if (channel in socket.channels) {
-      console.log(`Socket '${socket.id}' is already in channel '${channel}'`);
+      Logger.warn(`Socket '${socket.id}' is already in channel '${channel}'`);
 
       return;
     }
@@ -188,7 +189,7 @@ export default class SignalingServer {
 
     this.startHeartbeat(socket);
 
-    console.log(`Socket '${socket.id}' connection has been established.`);
+    Logger.info(`Socket '${socket.id}' connection has been established.`);
   }
 
   private startHeartbeat(socket: P2PSocket) {
@@ -198,13 +199,13 @@ export default class SignalingServer {
   }
 
   private handleSocketConnectionError(error: Error) {
-    console.log(`Unhandled error code: ${error}.`);
+    Logger.error(`Unhandled error code: ${error}.`);
 
     process.exit(1);
   }
 
   private handleSocketError(socket: P2PSocket, error: Error) {
-    console.log(`Socket '${socket.id}' received error ${error.message}`);
+    Logger.error(`Socket '${socket.id}' received error ${error.message}`);
   }
 
   private handleCloseConnection(socket: P2PSocket) {
@@ -214,18 +215,18 @@ export default class SignalingServer {
 
     delete this.#sockets[socket.id];
 
-    console.log(`Socket '${socket.id}' connection has been closed.`);
+    Logger.info(`Socket '${socket.id}' connection has been closed.`);
   }
 
   private removePeer(socket: P2PSocket, channel: string) {
-    console.log(`Removing socket ${socket.id} from all channels.`);
+    Logger.trace(`Removing socket ${socket.id} from all channels.`);
 
     if (this.#socketHeartbeatIntervals[socket.id]) {
       clearInterval(this.#socketHeartbeatIntervals[socket.id]);
     }
 
     if (!(channel in socket.channels)) {
-      console.log(`'${socket.id}' was not found in channel '${channel}'`);
+      Logger.warn(`'${socket.id}' was not found in channel '${channel}'`);
     } else {
       delete socket.channels[channel];
       delete this.#channels[channel][socket.id];

@@ -3,6 +3,7 @@ import config from 'common/config';
 import { SocketMessage } from "common/SocketMessage";
 import { SocketMessageType } from "common/SocketMessageType";
 import { CPong } from "common/Messages";
+import Logger from "common/Logger";
 
 export default class SocketHandler extends EventEmitter<SocketMessageType> {
   #socket: WebSocket;
@@ -13,13 +14,13 @@ export default class SocketHandler extends EventEmitter<SocketMessageType> {
     this.#socket = new WebSocket(this.socketServerUrl);
 
     this.#socket.onopen = () => {
-      console.log("Connected to signaling server");
+      Logger.info("Connected to signaling server");
 
       this.#socket.onmessage = this.handleMessage.bind(this);
     };
 
     this.#socket.onclose = () => {
-      console.log("Disconnected from signaling server");
+      Logger.info("Disconnected from signaling server");
       
       this.fire(SocketMessageType.DISCONNECTED);
     }

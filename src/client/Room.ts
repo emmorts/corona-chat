@@ -2,7 +2,7 @@ import { EventEmitter } from "common/EventEmitter";
 import { Point } from "common/Structures";
 import Peer from "common/Peer";
 import RoomRenderer from "client/RoomRenderer";
-import { getManhattanDistance } from "client/utils/MathUtils";
+import { getManhattanDistance, getHeuristicDistance } from "client/utils/MathUtils";
 import PeerGraphicsController from "client/PeerGraphicsController";
 
 export type RoomEventType = "localPositionChanged" | "peerGainChanged";
@@ -48,7 +48,7 @@ export default class Room extends EventEmitter<RoomEventType> {
 
     this.#peers.forEach(peer => {
       if (peer !== this.localPeer) {
-        const distanceToPeer = getManhattanDistance(localPosition, peer.position)
+        const distanceToPeer = getHeuristicDistance(localPosition, peer.position)
         const gain = this.getGainFromDistance(distanceToPeer, localAudioRange);
 
         this.fire("peerGainChanged", {

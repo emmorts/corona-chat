@@ -70,9 +70,7 @@ export default class Client {
       this.sendSpawnPeerCellMessage(name);
     });
 
-    this.#socketHandler.on(SocketMessageType.DISCONNECTED, () => {
-      this.#rtcChannel.close();
-    })
+    this.#socketHandler.on(SocketMessageType.DISCONNECTED, () => this.#rtcChannel.closeAll());
 
     this.#socketHandler.on(SocketMessageType.SPAWN_PEER_CELL, (message: Message.SSpawnPeerCell) => {
       const peerController = this.#peerControllers[message.socketId];
@@ -83,17 +81,16 @@ export default class Client {
     });
 
     this.#socketHandler.on(SocketMessageType.UPDATE_PEER_CELL_POSITION, (message: Message.SUpdatePeerCellPosition) => {
-      const peerController = this.#peerControllers[message.socketId];
 
-      peerController.updatePosition(message.position);
+      this.#peerControllers[message.socketId].updatePosition(message.position);
     });
 
     this.#socketHandler.on(SocketMessageType.REMOVE_PEER, (message: Message.SRemovePeer) => {
       const { socketId } = message;
 
       this.#peerControllers[socketId].destroy();
-
-      this.#room.removePeer(socketId)
+      this.#rtcChannel.close(socketId);
+      this.#room.removePeer(socketId);
     })
   }
 

@@ -1,16 +1,16 @@
 import SocketHandler from "client/SocketHandler";
-import RTCMediaStream from "client/RTCMediaStream";
-import { SRemovePeer, SSessionDescription, SAddPeer, SIceCandidate } from "common/Messages";
+import { SSessionDescription, SAddPeer, SIceCandidate } from "common/Messages";
 import { EventEmitter } from "common/EventEmitter";
 import config from "common/config";
 import { SocketMessageType } from "common/SocketMessageType";
+import Logger from "common/Logger";
 
 const ICE_SERVERS: RTCIceServer[] = [
   ...config.stunServers, 
   ...config.turnServers
 ];
 
-type P2PChannelEventType = "localStreamAdded" | "peerStreamAdded" | "peerStreamRemoved" | "peerAdded" | "peerRemoved" | "peerLocalDescriptionSet" | "peerRemoteDescriptionSet" | "iceCandidateSet";
+type P2PChannelEventType = "peerAdded" | "peerRemoved" | "peerLocalDescriptionSet" | "peerRemoteDescriptionSet" | "iceCandidateSet";
 
 export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
   #peers: {
@@ -19,7 +19,6 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
 
   registerSocketEvents(socketHandler: SocketHandler) {
     socketHandler.on(SocketMessageType.ADD_PEER, async message => await this.handleAddPeer(message));
-    socketHandler.on(SocketMessageType.REMOVE_PEER, message => this.handleRemovePeer(message));
     socketHandler.on(SocketMessageType.ICE_CANDIDATE, message => this.handleICECandidate(message));
     socketHandler.on(SocketMessageType.SESSION_DESCRIPTION, async message => await this.handleSessionDescription(message));
   }
@@ -42,7 +41,17 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
     }
   }
 
-  close() {
+  close(socketId: string) {
+    if (socketId in this.#peers) {
+      this.#peers[socketId].close();
+    }
+
+    delete this.#peers[socketId];
+
+    Logger.info(`Connection to peer '${socketId}' has been successfully closed`);
+  }
+
+  closeAll() {
     for (const peerId in this.#peers) {
       this.#peers[peerId].close();
     }
@@ -53,10 +62,8 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
   private async handleAddPeer(message: SAddPeer) {
     const { socketId, shouldCreateOffer } = message;
 
-    console.log(`Adding peer '${socketId}'`);
-    
     if (socketId in this.#peers) {
-      console.log(`Already connected to peer '${socketId}'`);
+      Logger.warn(`Already connected to peer '${socketId}'`);
       return;
     }
 
@@ -83,22 +90,6 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
     });
   }
 
-  private handleRemovePeer(message: SRemovePeer) {
-    const { socketId } = message;
-
-    console.log(`Removing peer '${socketId}'`);
-
-    if (socketId in this.#peers) {
-        this.#peers[socketId].close();
-    }
-
-    delete this.#peers[socketId];
-
-    this.fire("peerRemoved", {
-      socketId
-    })
-  }
-
   private async handleSessionDescription(message: SSessionDescription) {
     const { socketId } = message;
     const remoteSessionDescription = new RTCSessionDescription(message.sessionDescription);
@@ -110,7 +101,7 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
       if (remoteSessionDescription.type === "offer") {
         const peerSessionDescription = await this.createRTCAnswer(peerConnection);
 
-        console.log(`RTC remote session description has been successfully set`);
+        Logger.info(`RTC remote session description has been successfully set`);
 
         this.fire("peerRemoteDescriptionSet", {
           socketId,
@@ -118,7 +109,7 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
         });
       }
     } catch (error) {
-      console.error(`Failed to set remote session description`, error);
+      Logger.error(`Failed to set remote session description (${error})`);
     }
   }
 

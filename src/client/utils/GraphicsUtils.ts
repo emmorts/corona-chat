@@ -1,7 +1,7 @@
 import * as pixi from "pixi.js";
 import { Point } from "common/Structures";
 
-const CELL_RADIUS = 50;
+const CELL_RADIUS = 40;
 const OWNER_CELL_COLOR = 0x008000;
 const OWNER_CELL_OUTLINE_COLOR = 0x003300;
 const CELL_COLOR = 0xFFA500;
