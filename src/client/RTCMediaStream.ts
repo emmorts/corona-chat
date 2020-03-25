@@ -1,4 +1,4 @@
-import { EventEmitter } from "../common/EventEmitter";
+import { EventEmitter } from "common/EventEmitter";
 
 export type P2PMediaStreamConstructorOptions = MediaStreamConstraints & {
   muted?: boolean;
@@ -7,7 +7,7 @@ export type P2PMediaStreamConstructorOptions = MediaStreamConstraints & {
 
 type P2PMediaStreamEventType = "started";
 
-export default class P2PMediaStream extends EventEmitter<P2PMediaStreamEventType> {
+export default class RTCMediaStream extends EventEmitter<P2PMediaStreamEventType> {
   #options: P2PMediaStreamConstructorOptions;
   #mediaStream: MediaStream;
   #mediaElement: HTMLAudioElement | HTMLVideoElement;
@@ -41,10 +41,10 @@ export default class P2PMediaStream extends EventEmitter<P2PMediaStreamEventType
   setMute(mute: boolean) {
     if (mute) {
       this.#mediaElement.setAttribute("muted", "");
-      this.#mediaElement.muted = true;
+      this.#mediaStream.getAudioTracks()[0].enabled = false;
     } else {
       this.#mediaElement.removeAttribute("muted");
-      this.#mediaElement.muted = false;
+      this.#mediaStream.getAudioTracks()[0].enabled = true;
     }
   }
 

@@ -1,9 +1,10 @@
-import { EventEmitter } from "../common/EventEmitter";
-import config from '../common/config';
+import { EventEmitter } from "common/EventEmitter";
+import config from 'common/config';
+import { SocketMessage } from "common/SocketMessage";
+import { SocketMessageType } from "common/SocketMessageType";
+import { CPong } from "common/Messages";
 
-type SocketHandlerEventType = "connected" | "disconnected" | string;
-
-export default class SocketHandler extends EventEmitter<SocketHandlerEventType> {
+export default class SocketHandler extends EventEmitter<SocketMessageType> {
   #socket: WebSocket;
 
   constructor() {
@@ -11,7 +12,7 @@ export default class SocketHandler extends EventEmitter<SocketHandlerEventType> 
 
     this.#socket = new WebSocket(this.socketServerUrl);
 
-    this.#socket.onopen = event => {
+    this.#socket.onopen = () => {
       console.log("Connected to signaling server");
 
       this.#socket.onmessage = this.handleMessage.bind(this);
@@ -20,7 +21,7 @@ export default class SocketHandler extends EventEmitter<SocketHandlerEventType> 
     this.#socket.onclose = () => {
       console.log("Disconnected from signaling server");
       
-      this.fire("disconnected");
+      this.fire(SocketMessageType.DISCONNECTED);
     }
   }
 
@@ -36,12 +37,12 @@ export default class SocketHandler extends EventEmitter<SocketHandlerEventType> 
     return `${protocol}://${window.location.hostname}`;
   }
 
-  send(message: any) {
+  send(message: SocketMessage) {
     this.#socket.send(JSON.stringify(message));
   }
 
   private handleMessage(message: MessageEvent) {
-    let payload;
+    let payload: SocketMessage;
 
     try {
       payload = JSON.parse(message.data);
@@ -50,10 +51,10 @@ export default class SocketHandler extends EventEmitter<SocketHandlerEventType> 
       console.error(`Failed to parse payload`, message.data);
     }
 
-    if (payload.type === "ping") {
+    if (payload.type === SocketMessageType.PING) {
       this.send({
-        type: "pong"
-      });
+        type: SocketMessageType.PONG
+      } as CPong);
     } else {
       this.fire(payload.type, payload);
     }

@@ -1,8 +1,8 @@
-import Peer from "../common/Peer";
-import P2PMediaStream from "./P2PMediaStream";
-import PeerMediaController from "./PeerMediaController";
-import PeerGraphicsController from "./PeerGraphicsController";
-import { Point } from "../common/Structures";
+import { Point } from "common/Structures";
+import Peer from "common/Peer";
+import RTCMediaStream from "client/RTCMediaStream";
+import PeerMediaController from "client/PeerMediaController";
+import PeerGraphicsController from "client/PeerGraphicsController";
 
 export default class PeerController {
   #peer: Peer;
@@ -10,7 +10,7 @@ export default class PeerController {
   #graphicsController: PeerGraphicsController = new PeerGraphicsController();
 
   constructor() {
-    this.#mediaController.on("mediaStreamStarted", () => this.updateCameraPosition());
+    this.#mediaController.once("mediaStreamStarted", () => this.updateCameraPosition());
   }
 
   get peer() {
@@ -19,6 +19,8 @@ export default class PeerController {
 
   set peer(peer: Peer) {
     this.#peer = peer;
+
+    this.updateCameraPosition();
   }
 
   get mediaController() {
@@ -41,10 +43,6 @@ export default class PeerController {
     return this.#mediaController.mediaStream;
   }
 
-  set mediaStream(p2pMediaStream: P2PMediaStream) {
-    this.#mediaController.setMediaStream(p2pMediaStream, this.peer.isOwner);
-  }
-
   updatePosition(position: Point) {
     this.graphicsController.cellPosition = position;
     this.#peer.position = position;
@@ -58,7 +56,7 @@ export default class PeerController {
   }
 
   private updateCameraPosition() {
-    if (this.#mediaController?.mediaElement) {
+    if (this.#mediaController.hasMediaStream) {
       this.#mediaController.mediaElement.style.top = `${this.peer.position.y - 70}px`;
       this.#mediaController.mediaElement.style.left = `${this.peer.position.x + 55}px`;
     }

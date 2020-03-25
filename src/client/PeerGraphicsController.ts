@@ -1,8 +1,8 @@
 import * as pixi from "pixi.js";
-import Peer from "../common/Peer";
-import { drawPeerCell, drawPeerCellName, drawPeerAudioRange } from "./utils/GraphicsUtils";
-import { EventEmitter } from "../common/EventEmitter";
-import { Point } from "../common/Structures";
+import Peer from "common/Peer";
+import { drawPeerCell, drawPeerCellName, drawPeerAudioRange } from "client/utils/GraphicsUtils";
+import { EventEmitter } from "common/EventEmitter";
+import { Point } from "common/Structures";
 
 type PeerGraphicsEventType = "cellMove";
 

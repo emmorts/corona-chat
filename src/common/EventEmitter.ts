@@ -3,7 +3,7 @@ export interface EventHandler {
   proxy: (...args: any[]) => void
 }
 
-export class EventEmitter<T extends string> {
+export class EventEmitter<T extends string | number> {
   private eventHandlers: { [propertyName: string]: EventHandler[] } = {};
 
   on(name: T, listener: (...args: any[]) => void): EventEmitter<T> {

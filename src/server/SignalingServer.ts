@@ -1,11 +1,12 @@
 import { Server } from "http";
 import { ulid } from "ulid";
 import * as ws from "ws";
+import Peer from "common/Peer";
 import config from "common/config";
 import { P2PSocket } from "server/P2PSocket";
 import MessageHandler from "server/MessageHandler";
-import { SUpdatePeerCellPosition, CUpdatePeerCellPosition, CSpawnPeerCell, IRemovePeer, IPing, IConnected, SSpawnPeerCell } from 'common/Messages';
-import Peer from 'common/Peer';
+import * as Message from "common/Messages";
+import { SocketMessageType } from "common/SocketMessageType";
 
 type P2PChannelCollection = {
   [channelName: string]: {
@@ -43,7 +44,7 @@ export default class SignalingServer {
     });
   }
 
-  private handleSpawnPeerCell(socket: P2PSocket, message: CSpawnPeerCell) {
+  private handleSpawnPeerCell(socket: P2PSocket, message: Message.CSpawnPeerCell) {
     const peerController = new Peer({
       name: message.name,
       socketId: socket.id,
@@ -57,37 +58,37 @@ export default class SignalingServer {
     for (const peerId in this.#sockets) {
       if (peerId !== socket.id) {
         this.#sockets[socket.id].messageHandler.send({
-          type: "spawnPeerCell",
+          type: SocketMessageType.SPAWN_PEER_CELL,
           isOwner: false,
-          ownerId: this.#sockets[peerId].peerController.socketId,
+          socketId: this.#sockets[peerId].peerController.socketId,
           name: this.#sockets[peerId].peerController.name,
           position: this.#sockets[peerId].peerController.position,
           audioRange: this.#sockets[peerId].peerController.audioRange
-        } as SSpawnPeerCell)
+        } as Message.SSpawnPeerCell)
       }
     }
 
     for (const peerId in this.#sockets) {
       this.#sockets[peerId].messageHandler.send({
-        type: "spawnPeerCell",
+        type: SocketMessageType.SPAWN_PEER_CELL,
         isOwner: socket.id === peerId,
-        ownerId: peerController.socketId,
+        socketId: peerController.socketId,
         name: peerController.name,
         position: peerController.position,
         audioRange: peerController.audioRange
-      } as SSpawnPeerCell);
+      } as Message.SSpawnPeerCell);
     }
 
     socket.peerController = peerController;
   }
 
-  private handleUpdatePeerCellPosition(socket: P2PSocket, receivedMessage: CUpdatePeerCellPosition) {
+  private handleUpdatePeerCellPosition(socket: P2PSocket, receivedMessage: Message.CUpdatePeerCellPosition) {
     this.#sockets[socket.id].peerController.position = receivedMessage.position;
 
     for (const peerId in this.#sockets) {
       if (peerId !== socket.id) {
-        const messsage: SUpdatePeerCellPosition = {
-          type: "updatePeerCellPosition",
+        const messsage: Message.SUpdatePeerCellPosition = {
+          type: SocketMessageType.UPDATE_PEER_CELL_POSITION,
           socketId: socket.id,
           position: receivedMessage.position
         }
@@ -97,38 +98,36 @@ export default class SignalingServer {
     }
   }
 
-  private handleRelayICECandidate(socket: P2PSocket, message: any) {
-    const peerId = message.peerId  as string;
-    const iceCandidate = message.iceCandidate as any;
+  private handleRelayICECandidate(socket: P2PSocket, message: Message.CIceCandidate) {
+    const { socketId, iceCandidate } = message;
 
-    console.log(`Socket '${socket.id}' relaying ICE candidate to '${peerId}'`)
+    console.log(`Socket '${socket.id}' relaying ICE candidate to '${socketId}'`)
 
-    if (peerId in this.#sockets) {
-      this.#sockets[peerId].messageHandler.send({
-        type: "iceCandidate",
-        peerId: socket.id,
-        iceCandidate: iceCandidate
-      });
+    if (socketId in this.#sockets) {
+      this.#sockets[socketId].messageHandler.send({
+        type: SocketMessageType.ICE_CANDIDATE,
+        socketId: socket.id,
+        iceCandidate
+      } as Message.SIceCandidate);
     }
   }
 
-  private handleRelaySessionDescription(socket: P2PSocket, message: any) {
-    const peerId = message.peerId  as string;
-    const sessionDescription = message.sessionDescription as any;
+  private handleRelaySessionDescription(socket: P2PSocket, message: Message.CSessionDescription) {
+    const { socketId, sessionDescription } = message;
 
-    console.log(`Socket '${socket.id}' relaying session description to '${peerId}'`)
+    console.log(`Socket '${socket.id}' relaying session description to '${socketId}'`)
 
-    if (peerId in this.#sockets) {
-      this.#sockets[peerId].messageHandler.send({
-        type: "sessionDescription",
-        peerId: socket.id,
+    if (socketId in this.#sockets) {
+      this.#sockets[socketId].messageHandler.send({
+        type: SocketMessageType.SESSION_DESCRIPTION,
+        socketId: socket.id,
         sessionDescription: sessionDescription
-      });
+      } as Message.SSessionDescription);
     }
   }
 
-  private handleJoinChannel(socket: P2PSocket, message: any) {
-    const channel = message.channel as string;
+  private handleJoinChannel(socket: P2PSocket, message: Message.CJoinChannel) {
+    const { channel } = message;
 
     console.log(`Socket '${socket.id}' joining channel '${channel}'`);
 
@@ -144,16 +143,16 @@ export default class SignalingServer {
 
     for (const id in this.#channels[channel]) {
       this.#channels[channel][id].messageHandler.send({
-        type: "addPeer",
-        peerId: socket.id,
+        type: SocketMessageType.ADD_PEER,
+        socketId: socket.id,
         shouldCreateOffer: false
-      });
+      } as Message.SAddPeer);
 
       socket.messageHandler.send({
-        type: "addPeer",
-        peerId: id,
+        type: SocketMessageType.ADD_PEER,
+        socketId: id,
         shouldCreateOffer: true
-      })
+      } as Message.SAddPeer)
     }
 
     this.#channels[channel][socket.id] = socket;
@@ -169,16 +168,16 @@ export default class SignalingServer {
     socket.messageHandler = new MessageHandler(socket);
 
     socket.messageHandler.send({
-      type: "connected",
+      type: SocketMessageType.CONNECTED,
       socketId: socket.id,
       peers: Object.keys(this.#sockets).filter(s => s !== socket.id)
-    } as IConnected);
+    } as Message.SConnected);
 
-    socket.messageHandler.on("spawnPeerCell", message => this.handleSpawnPeerCell(socket, message));
-    socket.messageHandler.on("updatePeerCellPosition", message => this.handleUpdatePeerCellPosition(socket, message));
-    socket.messageHandler.on("joinChannel", message => this.handleJoinChannel(socket, message));
-    socket.messageHandler.on("relayICECandidate", message => this.handleRelayICECandidate(socket, message));
-    socket.messageHandler.on("relaySessionDescription", message => this.handleRelaySessionDescription(socket, message));
+    socket.messageHandler.on(SocketMessageType.SPAWN_PEER_CELL, message => this.handleSpawnPeerCell(socket, message));
+    socket.messageHandler.on(SocketMessageType.UPDATE_PEER_CELL_POSITION, message => this.handleUpdatePeerCellPosition(socket, message));
+    socket.messageHandler.on(SocketMessageType.JOIN_CHANNEL, message => this.handleJoinChannel(socket, message));
+    socket.messageHandler.on(SocketMessageType.ICE_CANDIDATE, message => this.handleRelayICECandidate(socket, message));
+    socket.messageHandler.on(SocketMessageType.SESSION_DESCRIPTION, message => this.handleRelaySessionDescription(socket, message));
 
     socket.on("message", (message) => {
       socket.messageHandler.handleMessage(message);
@@ -194,9 +193,7 @@ export default class SignalingServer {
 
   private startHeartbeat(socket: P2PSocket) {
     this.#socketHeartbeatIntervals[socket.id] = setInterval(() => {
-      socket.messageHandler.send({
-        type: "ping"
-      } as IPing);
+      socket.messageHandler.send({ type: SocketMessageType.PING } as Message.SPing);
     }, config.heartbeatInterval);
   }
 
@@ -235,14 +232,14 @@ export default class SignalingServer {
   
       for (const socketId in this.#channels[channel]) {
         this.#channels[channel][socketId].messageHandler.send({
-          type: "removePeer",
+          type: SocketMessageType.REMOVE_PEER,
           socketId: socket.id
-        } as IRemovePeer);
+        } as Message.SRemovePeer);
 
         socket.messageHandler.send({
-          type: "removePeer",
+          type: SocketMessageType.REMOVE_PEER,
           socketId: socketId
-        } as IRemovePeer);
+        } as Message.SRemovePeer);
       }
     }
 

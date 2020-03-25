@@ -1,10 +1,10 @@
 import * as pixi from "pixi.js";
-import Peer from "../common/Peer";
-import { EventEmitter } from "../common/EventEmitter";
-import { Point } from "../common/Structures";
-import PeerGraphicsController from "./PeerGraphicsController";
+import { EventEmitter } from "common/EventEmitter";
+import { Point } from "common/Structures";
+import Peer from "common/Peer";
+import PeerGraphicsController from "client/PeerGraphicsController";
 
-type RendererEventType = "peerCellMove";
+type RendererEventType = "localPositionChanged";
 
 export default class RoomRenderer extends EventEmitter<RendererEventType> {
   #app: pixi.Application;
@@ -27,7 +27,10 @@ export default class RoomRenderer extends EventEmitter<RendererEventType> {
 
   addPeer(peer: Peer, graphicsController: PeerGraphicsController) {
     graphicsController.drawCell(peer);
-    graphicsController.on("cellMove", (position: Point) => this.fire("peerCellMove", position));
+
+    if (peer.isOwner) {
+      graphicsController.on("cellMove", (position: Point) => this.fire("localPositionChanged", position));
+    }
 
     this.#peerGraphics[peer.socketId] = graphicsController;
 

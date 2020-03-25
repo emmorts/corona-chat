@@ -1,11 +1,11 @@
-import P2PMediaStream from "./P2PMediaStream";
-import { EventEmitter } from "../common/EventEmitter";
+import RTCMediaStream from "client/RTCMediaStream";
+import { EventEmitter } from "common/EventEmitter";
 
 export type PeerMediaControllerEventType = "mediaStreamStarted";
 
 export default class PeerMediaController extends EventEmitter<PeerMediaControllerEventType> {
   #audioContext: AudioContext = new AudioContext();
-  #mediaStream: P2PMediaStream;
+  #mediaStream: RTCMediaStream;
 
   #gainFilter = this.#audioContext.createGain();
   #filters: AudioNode[] = [ this.#gainFilter ];
@@ -26,24 +26,50 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     return this.#mediaStream?.mediaElement;
   }
 
-  setMediaStream(p2pMediaStream: P2PMediaStream, isOwner: boolean) {
-    this.#mediaStream = p2pMediaStream;
+  async setupLocalMediaStream() {
+    this.#mediaStream = new RTCMediaStream({ muted: true });
+    
+    const stream = await this.#mediaStream.getUserMedia();
 
-    if (this.#mediaStream.mediaStream) {
-      this.setupMediaStream(isOwner);
-    } else {
-      this.#mediaStream.once("started", () => this.setupMediaStream(isOwner));
-    }
+    this.#mediaStream.attachMediaElement(stream);
+
+    this.fire("mediaStreamStarted");
+  }
+
+  async setupRemoteMediaStream(peerConnection: RTCPeerConnection, localMediaController: PeerMediaController): Promise<void> {
+    return new Promise(resolve => {
+      peerConnection.ontrack = (event: RTCTrackEvent) => {
+        if (!this.#mediaStream) {
+          this.#mediaStream = new RTCMediaStream({ muted: false });
+          this.#mediaStream.attachMediaElement(event.streams[0]);
+          
+          this.fire("mediaStreamStarted");
+        }
+      }
+  
+      if (localMediaController.hasMediaStream) {
+        this.addLocalTracksToPeer(peerConnection, localMediaController);
+
+        resolve();
+      } else {
+        localMediaController.once("mediaStreamStarted", () => {
+          this.addLocalTracksToPeer(peerConnection, localMediaController);
+
+          resolve();
+        });
+      }
+    });
   }
 
   setGain(value: number) {
-    const gainFilter = this.#gainFilter.gain;
-    const gainValue = value * (gainFilter.maxValue - gainFilter.minValue) / 100 + gainFilter.minValue
+    const gainMax = 2;
+    const gainMin = 0;
+    const gainValue = value * (gainMax - gainMin) / 100 + gainMin
 
-    this.#mediaStream.setMute(value > 0);
+    this.#mediaStream.setMute(value === 0);
 
     this.#gainFilter.gain.setValueAtTime(gainValue, this.#audioContext.currentTime);
-    // this.#gainFilter.gain.value = value;
+    this.#gainFilter.gain.value = value;
 
     console.log(`Setting gain to ${gainValue}`);
   }
@@ -54,29 +80,50 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     }
   }
 
-  private setupMediaStream(isOwner: boolean) {
-    if (!isOwner) {
-      this.addAudioFilters();
-    }
-
-    this.fire("mediaStreamStarted");
-  }
-
-  private addAudioFilters() {
-    const source = this.#audioContext.createMediaStreamSource(this.nativeMediaStream);
-
-    this.connectAudioFilters(source);
-  }
-
-  private connectAudioFilters(source: MediaStreamAudioSourceNode) {
-    const filterCount = this.#filters.length;
-
-    this.#filters.reduce((previousFilterNode: AudioNode, currentFilterNode: AudioNode, index: number) => {
-      if (index === filterCount - 1) {
-        return previousFilterNode.connect(this.#audioContext.destination);
+  private async addLocalTracksToPeer(peerConnection: RTCPeerConnection, localMediaController: PeerMediaController) {
+    for (const track of localMediaController.nativeMediaStream.getTracks()) {
+      if (track.kind === "audio") {        
+        peerConnection.addTrack(this.addAudioFiltersToTrack(track), localMediaController.nativeMediaStream);
       } else {
-        return previousFilterNode.connect(currentFilterNode);
+        peerConnection.addTrack(track, localMediaController.nativeMediaStream);
       }
+    }
+  }
+
+  private addAudioFiltersToTrack(track: MediaStreamTrack): MediaStreamTrack {
+    const streamSource = this.#audioContext.createMediaStreamSource(new MediaStream([ track ]));
+    const streamDestination = this.#audioContext.createMediaStreamDestination();
+
+    this.connectAudioFilters(streamSource, [...this.#filters, streamDestination]);
+
+    this.#gainFilter.gain.value = 1;
+
+    const filteredMediaStreamTrack = streamDestination.stream.getAudioTracks()[0];
+
+    return filteredMediaStreamTrack;
+  }
+
+  private addAudioFilters(stream: MediaStream): MediaStream {
+    const audioTrack = stream.getAudioTracks()[0];
+
+    const streamSource = this.#audioContext.createMediaStreamSource(new MediaStream([ audioTrack ]));
+    const streamDestination = this.#audioContext.createMediaStreamDestination();
+
+    this.connectAudioFilters(streamSource, [...this.#filters, streamDestination]);
+
+    this.#gainFilter.gain.value = 2;
+
+    const filteredMediaStreamTrack = streamDestination.stream.getAudioTracks()[0];
+
+    stream.removeTrack(audioTrack);
+    stream.addTrack(filteredMediaStreamTrack);
+
+    return stream;
+  }
+
+  private connectAudioFilters(source: MediaStreamAudioSourceNode, filters: AudioNode[]) {
+    filters.reduce((previousFilterNode: AudioNode, currentFilterNode: AudioNode) => {
+      return previousFilterNode.connect(currentFilterNode);
     }, source);
   }
 }

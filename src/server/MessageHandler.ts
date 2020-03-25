@@ -1,30 +1,24 @@
 import * as ws from "ws";
 import { P2PSocket } from "server/P2PSocket";
+import { SocketMessage } from "common/SocketMessage";
+import { SocketMessageType } from "common/SocketMessageType";
+import { EventEmitter } from "common/EventEmitter";
 
-export default class MessageHandler {
+export default class MessageHandler extends EventEmitter<SocketMessageType> {
   #socket: P2PSocket;
-  #eventHandlers: {
-    [eventName: string]: ((...params: any[]) => void)[]
-  } = {};
 
   constructor(socket: P2PSocket) {
+    super();
+
     this.#socket = socket;
   }
 
-  on(eventName: string, handler: (...params: any[]) => void) {
-    if (!(eventName in this.#eventHandlers)) {
-      this.#eventHandlers[eventName] = [];
-    }
-
-    this.#eventHandlers[eventName].push(handler);
-  }
-
-  send(message: any) {
+  send(message: SocketMessage) {
     this.#socket.send(JSON.stringify(message));
   }
 
   handleMessage(message: ws.Data) {
-    let payload;
+    let payload: SocketMessage;
 
     try {
       payload = JSON.parse(message as string);
@@ -33,13 +27,5 @@ export default class MessageHandler {
     }
 
     this.fire(payload.type, payload);
-  }
-
-  private fire(eventName: string, ...params: any[]) {
-    if (eventName in this.#eventHandlers) {
-      this.#eventHandlers[eventName].forEach(handler => {
-        handler(...params);
-      })
-    }
   }
 }

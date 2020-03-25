@@ -1,142 +1,72 @@
-import Peer from "../common/Peer";
-import { CUpdatePeerCellPosition, IRemovePeer, SSpawnPeerCell, SUpdatePeerCellPosition, IConnected } from "../common/Messages";
-import { Point } from "../common/Structures";
-import SocketHandler from "./SocketHandler";
-import RoomRenderer from "./RoomRenderer";
-import PeerController from "./PeerController";
-import P2PMediaStream from "./P2PMediaStream";
-import { getManhattanDistance } from "./utils/MathUtils";
+import { EventEmitter } from "common/EventEmitter";
+import { Point } from "common/Structures";
+import Peer from "common/Peer";
+import RoomRenderer from "client/RoomRenderer";
+import { getManhattanDistance } from "client/utils/MathUtils";
+import PeerGraphicsController from "client/PeerGraphicsController";
 
-export default class Room {
-  #socketHandler: SocketHandler;
-  #renderer: RoomRenderer;
-  #ownerSocketId: string;
-  #peerControllers: {
-    [socketId: string]: PeerController
-  } = {};
+export type RoomEventType = "localPositionChanged" | "peerGainChanged";
 
-  constructor(socketHandler: SocketHandler, renderer: RoomRenderer) {
-    this.#socketHandler = socketHandler;
-    this.#renderer = renderer;
+export default class Room extends EventEmitter<RoomEventType> {
+  #renderer = new RoomRenderer();
+  #peers: Peer[] = [];
 
-    this.#renderer.on("peerCellMove", (position: Point) => this.handlePlayerCellMove(position));
+  constructor() {
+    super();
 
-    this.setupSocketHandlerEvents();
+    this.#renderer.on("localPositionChanged", (position: Point) => this.handlePeerCellMove(position));
   }
 
-  addLocalStream(mediaStream: P2PMediaStream) {
-    this.setupPeerController(this.#ownerSocketId, { mediaStream });
+  get localPeer() {
+    return this.#peers.find(peer => peer.isOwner);
   }
 
-  addPeerStream(socketId: string, mediaStream: P2PMediaStream) {
-    this.setupPeerController(socketId, { mediaStream });
+  addPeer(peer: Peer, graphicsController: PeerGraphicsController) {
+    this.#peers.push(peer);
+
+    this.#renderer.addPeer(peer, graphicsController);
   }
 
-  private setupSocketHandlerEvents() {
-    this.#socketHandler.on("connected", (message: IConnected) => {
-      this.setupPeerController(message.socketId);
+  removePeer(socketId: string) {
+    const peerIndex = this.#peers.findIndex(peer => peer.socketId === socketId);
+    if (peerIndex !== -1) {
+      this.#renderer.removePeer(socketId);
 
-      message.peers.forEach(peerSocketId => {
-        this.setupPeerController(peerSocketId);
-      });
-    });
-  
-    this.#socketHandler.on("spawnPeerCell", (message: SSpawnPeerCell) => {
-      if (message.isOwner) {
-        this.#ownerSocketId = message.ownerId;
-      }
-
-      const peer = new Peer({
-        name: message.name,
-        socketId: message.ownerId,
-        isOwner: message.isOwner,
-        position: message.position,
-        audioRange: message.audioRange
-      });
-
-      const peerController = this.setupPeerController(message.ownerId, { peer });
-
-      this.#renderer.addPeer(peer, peerController.graphicsController);
-    });
-  
-    this.#socketHandler.on("updatePeerCellPosition", (message: SUpdatePeerCellPosition) => {
-      this.#peerControllers[message.socketId].updatePosition(message.position);
-    });
-
-    this.#socketHandler.on("removePeer", (message: IRemovePeer) => {
-      if (this.#peerControllers[message.socketId]) {
-        this.#peerControllers[message.socketId].destroy();
-
-        delete this.#peerControllers[message.socketId];
-      }
-
-      this.#renderer.removePeer(message.socketId);
-    });
+      this.#peers.splice(peerIndex, 1);
+    }
   }
 
-  private handlePlayerCellMove(position: Point) {
-    this.#peerControllers[this.#ownerSocketId].updatePosition(position);
-
+  private handlePeerCellMove(position: Point) {
     this.updatePeerGains();
-    this.sendUpdatePeerPositionMessage(position);
-  }
 
-  private sendUpdatePeerPositionMessage(position: Point) {
-    const message: CUpdatePeerCellPosition = {
-      type: "updatePeerCellPosition",
-      position
-    };
-
-    this.#socketHandler.send(message);
-  }
-
-  private setupPeerController(socketId: string, options?: {
-    peer?: Peer,
-    mediaStream?: P2PMediaStream
-  }) {
-    if (!(socketId in this.#peerControllers)) {
-      this.#peerControllers[socketId] = new PeerController();
-    }
-
-    if (options?.peer) {
-      this.#peerControllers[socketId].peer = options.peer;
-    }
-
-    if (options?.mediaStream) {
-      this.#peerControllers[socketId].mediaStream = options.mediaStream;
-    }
-
-    return this.#peerControllers[socketId];
+    this.fire("localPositionChanged", position);
   }
 
   private updatePeerGains() {
-    const ownerPosition = this.#peerControllers[this.#ownerSocketId].peer.position;
+    const localPosition = this.localPeer.position;
+    const localAudioRange = this.localPeer.audioRange;
 
-    for (const socketId in this.#peerControllers) {
-      if (socketId !== this.#ownerSocketId) {
-        const peerController = this.#peerControllers[socketId];
-        const distanceToPeer = getManhattanDistance(ownerPosition, peerController.peer.position);
-        const gain = this.getGainFromDistance(distanceToPeer, peerController.peer.audioRange);
+    this.#peers.forEach(peer => {
+      if (peer !== this.localPeer) {
+        const distanceToPeer = getManhattanDistance(localPosition, peer.position)
+        const gain = this.getGainFromDistance(distanceToPeer, localAudioRange);
 
-        peerController.mediaController.setGain(gain);
+        this.fire("peerGainChanged", {
+          socketId: peer.socketId,
+          gain
+        })
       }
-    }
+    });
   }
 
   private getGainFromDistance(distance: number, audioRange: number) {
     if (distance < audioRange) {
       return 100;
     } else {
-      return Math.max(0, -0.005 * audioRange * (distance - audioRange) ** 2 + 100);
-      // Linear algorithm
-      // return 100 * (1 - (distance / audioRange));
+      const spreadCoefficient = 4_500;
+
+      return Math.max(0, -1 / spreadCoefficient * (distance - audioRange) ** 2 + 100);
     }
   }
-
-  // Logarithmic, but non-adjustible
-  // TODO: Make adjustable based on audio range
-  // private getGainFromDistance(distance: number) {
-  //   return Math.max(-1 * Math.log10(distance) * 50 + 150, 0);
-  // }
 
 }

@@ -1,5 +1,5 @@
 import * as pixi from "pixi.js";
-import { Point } from "../../common/Structures";
+import { Point } from "common/Structures";
 
 const CELL_RADIUS = 50;
 const OWNER_CELL_COLOR = 0x008000;
@@ -80,16 +80,21 @@ export function drawPeerCell(options: DrawPeerCellOptions): pixi.Graphics {
       if (this.data && this.dragging) {
         const newPosition = this.data.getLocalPosition(this.parent);
     
-        this.x = this.dragStartPosition.x + (newPosition.x - this.dragStartLocalPosition.x);
-        this.y = this.dragStartPosition.y + (newPosition.y - this.dragStartLocalPosition.y);
+        const candidateX = this.dragStartPosition.x + (newPosition.x - this.dragStartLocalPosition.x);
+        const candidateY = this.dragStartPosition.y + (newPosition.y - this.dragStartLocalPosition.y);
 
-        if (options.onDrag) {
-          const absolutePosition = this.toGlobal(new pixi.Point(0, 0));
-    
-          options.onDrag({
-            x: absolutePosition.x,
-            y: absolutePosition.y
-          });
+        if (candidateX !== this.x || candidateY !== this.y) {
+          this.x = candidateX;
+          this.y = candidateY;
+
+          if (options.onDrag) {
+            const absolutePosition = this.toGlobal(new pixi.Point(0, 0));
+      
+            options.onDrag({
+              x: absolutePosition.x,
+              y: absolutePosition.y
+            });
+          }
         }
       }
     }
