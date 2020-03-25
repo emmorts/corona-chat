@@ -11,11 +11,12 @@ const loggers: { new(mask: LogLevel): AbstractLogger }[] = [] = [
 export default {
   loggers,
   getByName: (loggerName: string, logMask: LogLevel): AbstractLogger => {
-    const loggerTypeRef = loggers.find(x => x.name.toLowerCase() === loggerName.toLowerCase());
-    if (!loggerTypeRef) {
-      throw new Error(`Couldn't find a logger ${loggerName}`);
-    }
+    return new ConsoleLogger(logMask);
+    // const loggerTypeRef = loggers.find(x => x.name.toLowerCase() === loggerName.toLowerCase());
+    // if (!loggerTypeRef) {
+    //   throw new Error(`Couldn't find a logger ${loggerName}`);
+    // }
     
-    return new loggerTypeRef(logMask);
+    // return new loggerTypeRef(logMask);
   }
 };
