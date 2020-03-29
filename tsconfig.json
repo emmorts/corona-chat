@@ -9,20 +9,24 @@
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
-    "baseUrl": "./src/",
+    "baseUrl": "./",
     "outDir": "./dist/",
     "paths": {
       "ws": [
-        "./@types/ws",
-      ]
+        "./src/@types/ws",
+      ],
+      "common/*": [ "./src/common/*" ],
+      "client/*": [ "./src/client/*" ],
+      "server/*": [ "./src/server/*" ]
     }
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "tests/**/*"
   ],
   "exclude": [
     "node_modules",
-    "**/*.spec.ts",
+    // "**/*.spec.ts",
     "./src/@types"
   ]
 }

@@ -62,13 +62,15 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
   }
 
   setGain(value: number) {
-    const gainMax = 2;
-    const gainMin = 0;
-    const gainValue = value * (gainMax - gainMin) / 100 + gainMin
+    if (this.#mediaStream) {
+      const gainMax = 2;
+      const gainMin = 0;
+      const gainValue = value * (gainMax - gainMin) / 100 + gainMin
 
-    this.#mediaStream.setMute(value === 0);
+      this.#mediaStream.setMute(value === 0);
 
-    this.#gainFilter.gain.setValueAtTime(gainValue, this.#audioContext.currentTime);
+      this.#gainFilter.gain.setValueAtTime(gainValue, this.#audioContext.currentTime);
+    }
   }
 
   destroy() {

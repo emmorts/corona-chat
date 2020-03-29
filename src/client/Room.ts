@@ -1,15 +1,21 @@
+import { SmartMap } from "smartmap";
 import { EventEmitter } from "common/EventEmitter";
 import { Point } from "common/Structures";
 import Peer from "common/Peer";
 import RoomRenderer from "client/RoomRenderer";
-import { getManhattanDistance, getHeuristicDistance } from "client/utils/MathUtils";
+import { getHeuristicDistance } from "client/utils/MathUtils";
 import PeerGraphicsController from "client/PeerGraphicsController";
+import { ClusterPoint, findClusters, Cluster } from "client/utils/ClusterUtils";
+import { Conversation } from "client/models/Conversation";
+
+const CONVERSATION_SIZE_INCREMENT = 50;
 
 export type RoomEventType = "localPositionChanged" | "peerGainChanged";
 
 export default class Room extends EventEmitter<RoomEventType> {
   #renderer = new RoomRenderer();
   #peers: Peer[] = [];
+  #conversations: SmartMap<Conversation> = new SmartMap("hashCode");
 
   constructor() {
     super();
@@ -25,6 +31,8 @@ export default class Room extends EventEmitter<RoomEventType> {
     this.#peers.push(peer);
 
     this.#renderer.addPeer(peer, graphicsController);
+
+    this.updateConversations();
   }
 
   removePeer(socketId: string) {
@@ -36,8 +44,39 @@ export default class Room extends EventEmitter<RoomEventType> {
     }
   }
 
+  updateConversations() {
+    const clusterPoints: ClusterPoint[] = this.#peers.map(peer => ({
+      id: peer.socketId,
+      x: peer.position.x,
+      y: peer.position.y,
+      radius: peer.audioRange
+    }));
+
+    const clusters = findClusters(clusterPoints, CONVERSATION_SIZE_INCREMENT);
+
+    if (clusters.length) {
+      const candidateConversations = new SmartMap<Conversation>("hashCode");
+      clusters.forEach(cluster => candidateConversations.add(new Conversation(cluster.center, cluster.radius)))
+
+      for (const candidateConversation of candidateConversations) {
+        if (!this.#conversations.contains(candidateConversation.hashCode)) {
+          this.#conversations.add(candidateConversation);
+          this.#renderer.addConversation(candidateConversation);
+        }
+      }
+
+      for (const conversation of this.#conversations) {
+        if (!candidateConversations.contains(conversation.hashCode)) {
+          this.#conversations.delete(conversation.hashCode);
+          this.#renderer.removeConversation(conversation);
+        }
+      }
+    }
+  }
+
   private handlePeerCellMove(position: Point) {
     this.updatePeerGains();
+    this.updateConversations();
 
     this.fire("localPositionChanged", position);
   }
@@ -48,7 +87,7 @@ export default class Room extends EventEmitter<RoomEventType> {
 
     this.#peers.forEach(peer => {
       if (peer !== this.localPeer) {
-        const distanceToPeer = getHeuristicDistance(localPosition, peer.position)
+        const distanceToPeer = getHeuristicDistance(localPosition, peer.position);
         const gain = this.getGainFromDistance(distanceToPeer, localAudioRange);
 
         this.fire("peerGainChanged", {

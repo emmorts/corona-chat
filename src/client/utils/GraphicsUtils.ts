@@ -8,6 +8,7 @@ const CELL_COLOR = 0xFFA500;
 const CELL_OUTLINE_COLOR = 0x003300;
 const AUDIO_RANGE_OUTLINE_COLOR = 0x008000;
 const AUDIO_RANGE_OUTLINE_ALPHA = 0x99;
+const CONVERSATION_COLOR = 0xEEFB54;
 
 type DraggableGraphics = pixi.Graphics & {
   data: pixi.interaction.InteractionData;
@@ -109,7 +110,8 @@ interface DrawPeerAudioRangeOptions {
 }
 
 export function drawPeerAudioRange(options: DrawPeerAudioRangeOptions): pixi.Sprite {
-  const offscreenCanvas = document.createElement("canvas")
+  const offscreenCanvas = document.querySelector(".js-offscreen-canvas") as HTMLCanvasElement;
+
   offscreenCanvas.width = options.audioRange * 2;
   offscreenCanvas.height = options.audioRange * 2;
 
@@ -145,4 +147,60 @@ export function drawPeerCellName(options: DrawPeerCellNameOptions): pixi.Text {
   peerNameText.position.set(options.position.x, options.position.y);
 
   return peerNameText;
+}
+
+interface DrawConversationCircleOptions {
+  position: Point;
+  radius: number;
+}
+
+export function drawConversationCircle(options: DrawConversationCircleOptions): pixi.Sprite {
+  const offscreenCanvas = document.querySelector(".js-offscreen-canvas") as HTMLCanvasElement;
+
+  const circleRadius = 100;
+  offscreenCanvas.width = circleRadius * 2;
+  offscreenCanvas.height = circleRadius * 2;
+
+  const offscreenCanvasContext = offscreenCanvas.getContext("2d");
+
+  const radialGradient = offscreenCanvasContext.createRadialGradient(circleRadius, circleRadius, 1, circleRadius, circleRadius, circleRadius);
+  radialGradient.addColorStop(0, hexToRgba(CONVERSATION_COLOR, 1));
+  radialGradient.addColorStop(1, hexToRgba(CONVERSATION_COLOR, 0));
+
+  offscreenCanvasContext.beginPath();
+
+  offscreenCanvasContext.arc(circleRadius, circleRadius, circleRadius, 0, Math.PI * 2);
+  offscreenCanvasContext.strokeStyle = "#" + CONVERSATION_COLOR.toString(16).padStart(6, "0") + AUDIO_RANGE_OUTLINE_ALPHA.toString(16).padStart(2, "0")
+  offscreenCanvasContext.closePath();
+  offscreenCanvasContext.stroke();
+
+  const sprite = pixi.Sprite.from(offscreenCanvas);
+  sprite.anchor.set(0.5, 0.5);
+  sprite.position.set(options.position.x, options.position.y);
+
+  return sprite;
+}
+
+export function getOffscreenCanvas(width: number, height: number): HTMLCanvasElement {
+  const offscreenCanvas = document.querySelector(".js-offscreen-canvas") as HTMLCanvasElement;
+
+  offscreenCanvas.width = width;
+  offscreenCanvas.height = height;
+
+  return offscreenCanvas;
+}
+
+export function createRadialGradient(context: CanvasRenderingContext2D, x: number, y: number, radius: number, color: number): CanvasGradient {
+  const radialGradient = context.createRadialGradient(x, y, 1, x, y, radius);
+  radialGradient.addColorStop(0, hexToRgba(color, 96));
+  radialGradient.addColorStop(1, hexToRgba(color, 0));
+
+  return radialGradient;
+}
+
+function hexToRgba(hex: number, alpha: number): string {
+  const color = hex.toString(16).padStart(6, "0");
+  const transparency = alpha.toString(16).padStart(2, "0");
+
+  return `#${color}${transparency}`;
 }

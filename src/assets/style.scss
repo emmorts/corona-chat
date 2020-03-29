@@ -18,3 +18,7 @@ video {
   background: rgb(56, 64, 78) url(./images/tile.png) 56px 56px;
   position: relative;
 }
+
+.offscreen-canvas {
+  visibility: hidden;
+}

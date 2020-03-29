@@ -48,14 +48,14 @@ export default class PeerGraphicsController extends EventEmitter<PeerGraphicsEve
 
     this.#displayObjects.push(this.#cellNameText);
 
-    if (peer.isOwner) {
-      this.#cellAudioRangeSprite = drawPeerAudioRange({
-        audioRange: peer.audioRange,
-        position: peer.position,
-      });
+    // if (peer.isOwner) {
+    //   this.#cellAudioRangeSprite = drawPeerAudioRange({
+    //     audioRange: peer.audioRange,
+    //     position: peer.position,
+    //   });
 
-      this.#displayObjects.push(this.#cellAudioRangeSprite);
-    }
+    //   this.#displayObjects.push(this.#cellAudioRangeSprite);
+    // }
   }
 
   destroy() {

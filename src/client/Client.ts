@@ -81,8 +81,8 @@ export default class Client {
     });
 
     this.#socketHandler.on(SocketMessageType.UPDATE_PEER_CELL_POSITION, (message: Message.SUpdatePeerCellPosition) => {
-
       this.#peerControllers[message.socketId].updatePosition(message.position);
+      this.#room.updateConversations();
     });
 
     this.#socketHandler.on(SocketMessageType.REMOVE_PEER, (message: Message.SRemovePeer) => {

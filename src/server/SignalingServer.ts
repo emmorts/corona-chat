@@ -8,6 +8,7 @@ import MessageHandler from "server/MessageHandler";
 import * as Message from "common/Messages";
 import { SocketMessageType } from "common/SocketMessageType";
 import Logger from "common/Logger";
+import { SocketMessage } from "common/SocketMessage";
 
 type P2PChannelCollection = {
   [channelName: string]: {
@@ -174,17 +175,17 @@ export default class SignalingServer {
       peers: Object.keys(this.#sockets).filter(s => s !== socket.id)
     } as Message.SConnected);
 
-    socket.messageHandler.on(SocketMessageType.SPAWN_PEER_CELL, message => this.handleSpawnPeerCell(socket, message));
-    socket.messageHandler.on(SocketMessageType.UPDATE_PEER_CELL_POSITION, message => this.handleUpdatePeerCellPosition(socket, message));
-    socket.messageHandler.on(SocketMessageType.JOIN_CHANNEL, message => this.handleJoinChannel(socket, message));
-    socket.messageHandler.on(SocketMessageType.ICE_CANDIDATE, message => this.handleRelayICECandidate(socket, message));
-    socket.messageHandler.on(SocketMessageType.SESSION_DESCRIPTION, message => this.handleRelaySessionDescription(socket, message));
+    socket.messageHandler.on(SocketMessageType.SPAWN_PEER_CELL, (message: Message.CSpawnPeerCell) => this.handleSpawnPeerCell(socket, message));
+    socket.messageHandler.on(SocketMessageType.UPDATE_PEER_CELL_POSITION, (message: Message.CUpdatePeerCellPosition) => this.handleUpdatePeerCellPosition(socket, message));
+    socket.messageHandler.on(SocketMessageType.JOIN_CHANNEL, (message: Message.CJoinChannel) => this.handleJoinChannel(socket, message));
+    socket.messageHandler.on(SocketMessageType.ICE_CANDIDATE, (message: Message.CIceCandidate) => this.handleRelayICECandidate(socket, message));
+    socket.messageHandler.on(SocketMessageType.SESSION_DESCRIPTION, (message: Message.CSessionDescription) => this.handleRelaySessionDescription(socket, message));
 
-    socket.on("message", (message) => {
+    socket.on("message", (message: ws.Data) => {
       socket.messageHandler.handleMessage(message);
     });
 
-    socket.on("error", (error) => this.handleSocketError(socket, error));
+    socket.on("error", (error: any) => this.handleSocketError(socket, error));
     socket.on("close", () => this.handleCloseConnection(socket));
 
     this.startHeartbeat(socket);
