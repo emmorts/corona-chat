@@ -3,7 +3,7 @@ import { LogLevel } from "common/loggers/LogLevel";
 export default {
   "socketServerPort": 3000,
   "maxConnections": 255,
-  "heartbeatInterval": 5000,
+  "heartbeatInterval": 60000,
   "stunServers": [{
     "urls": [ "stun:stun.l.google.com:19302" ],
   }],

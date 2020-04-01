@@ -1,63 +1,140 @@
 import RTCMediaStream from "client/RTCMediaStream";
-import { EventEmitter } from "common/EventEmitter";
+import EventEmitter from "common/EventEmitter";
+import { ControlItemType } from "client/ControlsManager";
+import Logger from "common/Logger";
+import { Point } from "common/Structures";
 
-export type PeerMediaControllerEventType = "mediaStreamStarted";
+export enum PeerMediaControllerEventType {
+  MEDIA_TRACKS_ADDED = "MEDIA_TRACKS_ADDED",
+  AUDIO_STREAM_STARTED = "AUDIO_STREAM_STARTED",
+  AUDIO_STREAM_STOPPED = "AUDIO_STREAM_STOPPED",
+  VIDEO_STREAM_STARTED = "VIDEO_STREAM_STARTED",
+  VIDEO_STREAM_STOPPED = "VIDEO_STREAM_STOPPED",
+};
 
-export default class PeerMediaController extends EventEmitter<PeerMediaControllerEventType> {
+interface PeerMediaControllerEventConfiguration {
+  [PeerMediaControllerEventType.MEDIA_TRACKS_ADDED]: { (): void };
+  [PeerMediaControllerEventType.AUDIO_STREAM_STARTED]: { (stream: MediaStream): void };
+  [PeerMediaControllerEventType.AUDIO_STREAM_STOPPED]: { (): void };
+  [PeerMediaControllerEventType.VIDEO_STREAM_STARTED]: { (stream: MediaStream): void };
+  [PeerMediaControllerEventType.VIDEO_STREAM_STOPPED]: { (): void };
+}
+
+export default class PeerMediaController extends EventEmitter<PeerMediaControllerEventConfiguration> {
   #audioContext: AudioContext = new AudioContext();
   #mediaStream: RTCMediaStream;
+  #audioStream: RTCMediaStream;
+  #videoStream: RTCMediaStream;
 
   #gainFilter = this.#audioContext.createGain();
   #filters: AudioNode[] = [ this.#gainFilter ];
 
-  get hasMediaStream() {
-    return !!this.#mediaStream?.mediaStream;
+  get audioTracks() {
+    return this.#audioStream?.mediaStream.getAudioTracks() ?? [];
   }
 
-  get mediaStream() {
-    return this.#mediaStream;
+  get videoTracks() {
+    return this.#videoStream?.mediaStream.getVideoTracks() ?? [];
   }
 
-  get nativeMediaStream() {
-    return this.#mediaStream?.mediaStream;
+  get audioStream() {
+    return this.#audioStream?.mediaStream;
   }
 
-  get mediaElement() {
-    return this.#mediaStream?.mediaElement;
+  get videoStream() {
+    return this.#videoStream?.mediaStream;
   }
 
-  async setupLocalMediaStream() {
-    this.#mediaStream = new RTCMediaStream({ muted: true });
+  get streams() {
+    const streams: MediaStream[] = [];
+
+    if (this.audioStream) {
+      streams.push(this.audioStream);
+    }
+
+    if (this.videoStream) {
+      streams.push(this.videoStream);
+    }
+
+    return streams;
+  }
+
+  async setupLocalAudioStream() {
+    this.#audioStream = new RTCMediaStream({ muted: true, audio: true, video: false });
     
-    const stream = await this.#mediaStream.getUserMedia();
+    const stream = await this.#audioStream.getUserMedia();
 
-    this.#mediaStream.attachMediaElement(stream);
+    this.#audioStream.attachMediaElement(stream);
 
-    this.fire("mediaStreamStarted");
+    this.fire(PeerMediaControllerEventType.AUDIO_STREAM_STARTED, stream);
   }
 
-  async setupRemoteMediaStream(peerConnection: RTCPeerConnection, localMediaController: PeerMediaController): Promise<void> {
-    return new Promise(resolve => {
-      peerConnection.ontrack = (event: RTCTrackEvent) => {
-        if (!this.#mediaStream) {
-          this.#mediaStream = new RTCMediaStream({ muted: false });
-          this.#mediaStream.attachMediaElement(event.streams[0]);
-          
-          this.fire("mediaStreamStarted");
+  removeLocalAudioStream() {
+    if (this.#audioStream && this.#audioStream.isAttached) {
+      this.#audioStream.remove();
+
+      this.fire(PeerMediaControllerEventType.AUDIO_STREAM_STOPPED);
+    } else {
+      Logger.error("Failed to remove audio stream - not attached");
+    }
+  }
+
+  async setupLocalVideoStream() {
+    this.#videoStream = new RTCMediaStream({ muted: true, audio: false, video: true });
+    
+    const stream = await this.#videoStream.getUserMedia();
+
+    this.#videoStream.attachMediaElement(stream);
+
+    this.fire(PeerMediaControllerEventType.VIDEO_STREAM_STARTED, stream);
+  }
+
+  removeLocalVideoStream() {
+    if (this.#videoStream && this.#videoStream.isAttached) {
+      this.#videoStream.remove();
+
+      this.fire(PeerMediaControllerEventType.VIDEO_STREAM_STOPPED);
+    } else {
+      Logger.error("Failed to remove video stream - not attached");
+    }
+  }
+
+  async setupRemoteMediaStream(peerConnection: RTCPeerConnection, localMediaController: PeerMediaController) {
+    peerConnection.ontrack = (event: RTCTrackEvent) => {
+      console.log("ontrack", event);
+
+      if (!this.#mediaStream) {
+        const stream = event.streams[0];
+        const isVideo = event.track.kind === "video";
+
+        if (isVideo) {
+          this.#videoStream = new RTCMediaStream({ muted: false, video: true, audio: false });
+          this.#videoStream.attachMediaElement(stream);
+
+          this.fire(PeerMediaControllerEventType.VIDEO_STREAM_STARTED, stream);
+        } else {
+          this.#audioStream = new RTCMediaStream({ muted: false, video: false, audio: true });
+          this.#audioStream.attachMediaElement(stream);
+
+          this.fire(PeerMediaControllerEventType.AUDIO_STREAM_STARTED, stream);
         }
       }
-  
-      if (localMediaController.hasMediaStream) {
-        this.addLocalTracksToPeer(peerConnection, localMediaController);
+    }
 
-        resolve();
-      } else {
-        localMediaController.once("mediaStreamStarted", () => {
-          this.addLocalTracksToPeer(peerConnection, localMediaController);
+    if (localMediaController.streams.length) {
+      const sender = this.addLocalTracksToPeer(peerConnection, localMediaController.streams);
 
-          resolve();
-        });
-      }
+      localMediaController.on([ PeerMediaControllerEventType.AUDIO_STREAM_STOPPED, PeerMediaControllerEventType.VIDEO_STREAM_STOPPED ], () => {
+        peerConnection.removeTrack(sender)
+      });
+    }
+
+    localMediaController.on([ PeerMediaControllerEventType.AUDIO_STREAM_STARTED, PeerMediaControllerEventType.VIDEO_STREAM_STARTED ], (stream) => {
+      const sender = this.addLocalTracksToPeer(peerConnection, [ stream ]);
+
+      localMediaController.on([ PeerMediaControllerEventType.AUDIO_STREAM_STOPPED, PeerMediaControllerEventType.VIDEO_STREAM_STOPPED ], () => {
+        peerConnection.removeTrack(sender)
+      });
     });
   }
 
@@ -73,20 +150,35 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     }
   }
 
+  updateVideoStreamPosition(position: Point) {
+    if (this.#videoStream && this.#videoStream.isAttached) {
+      this.#videoStream.mediaElement.style.top = `${position.y}px`;
+      this.#videoStream.mediaElement.style.left = `${position.x}px`;
+    }
+  }
+
   destroy() {
     if (this.#mediaStream) {
       this.#mediaStream.remove();
     }
   }
 
-  private async addLocalTracksToPeer(peerConnection: RTCPeerConnection, localMediaController: PeerMediaController) {
-    for (const track of localMediaController.nativeMediaStream.getTracks()) {
-      if (track.kind === "audio") {        
-        peerConnection.addTrack(this.addAudioFiltersToTrack(track), localMediaController.nativeMediaStream);
-      } else {
-        peerConnection.addTrack(track, localMediaController.nativeMediaStream);
+  private addLocalTracksToPeer(peerConnection: RTCPeerConnection, streams: MediaStream[]): RTCRtpSender {
+    let rtcRtpSender: RTCRtpSender;
+
+    streams.forEach(stream => {
+      for (const audioTrack of stream.getAudioTracks()) {
+        rtcRtpSender = peerConnection.addTrack(this.addAudioFiltersToTrack(audioTrack), stream);
       }
-    }
+  
+      for (const videoTrack of stream.getVideoTracks()) {
+        rtcRtpSender = peerConnection.addTrack(videoTrack, stream);
+      }
+    });
+
+    this.fire(PeerMediaControllerEventType.MEDIA_TRACKS_ADDED);
+
+    return rtcRtpSender;
   }
 
   private addAudioFiltersToTrack(track: MediaStreamTrack): MediaStreamTrack {

@@ -1,11 +1,13 @@
 import { SocketMessageType } from "common/SocketMessageType";
 import * as Message from "common/Messages";
 import SocketHandler from "client/SocketHandler";
-import RTCChannel from "client/RTCChannel";
-import Room from "client/Room";
+import RTCChannel, { RTCChannelEventType } from "client/RTCChannel";
+import Room, { RoomEventType } from "client/Room";
 import PeerController from "client/PeerController";
 import Peer from "common/Peer";
 import { Point } from "common/Structures";
+import { PeerMediaControllerEventType } from "client/PeerMediaController";
+import Logger from "common/Logger";
 
 export interface ClientStartParameters {
   name: string;
@@ -52,7 +54,7 @@ export default class Client {
     this.#localSocketId = socketId;
 
     this.localPeerController = new PeerController();
-    this.localPeerController.mediaController.setupLocalMediaStream();
+    // this.localPeerController.mediaController.setupLocalMediaStream();
   }
 
   private initRemotePeerControllers(peerSocketIds: string[]) {
@@ -95,31 +97,27 @@ export default class Client {
   }
 
   private handleChannelEvents() {
-    this.#rtcChannel.on("peerAdded", async ({ socketId, peerConnection, shouldCreateOffer }) => {
+    this.#rtcChannel.on(RTCChannelEventType.PEER_ADDED, async (socketId, peerConnection, shouldCreateOffer) => {
       if (!(socketId in this.#peerControllers)) {
         this.#peerControllers[socketId] = new PeerController();
       }
 
-      await this.streamLocalMediaToPeer(socketId, peerConnection);
-
-      if (shouldCreateOffer) {
-        await this.#rtcChannel.createRTCOffer(socketId);
-      }
+      await this.streamLocalMediaToPeer(socketId, peerConnection, shouldCreateOffer);
     });
 
-    this.#rtcChannel.on("iceCandidateSet", ({ socketId, iceCandidate }) => this.#socketHandler.send({
+    this.#rtcChannel.on(RTCChannelEventType.ICE_CANDIDATE_SET, (socketId, iceCandidate) => this.#socketHandler.send({
       type: SocketMessageType.ICE_CANDIDATE,
       socketId,
       iceCandidate
     } as Message.CIceCandidate));
 
-    this.#rtcChannel.on("peerLocalDescriptionSet", ({ socketId, sessionDescription }) => this.#socketHandler.send({
+    this.#rtcChannel.on(RTCChannelEventType.PEER_LOCAL_DESCRIPTION_SET, (socketId, sessionDescription) => this.#socketHandler.send({
       type: SocketMessageType.SESSION_DESCRIPTION,
       socketId,
       sessionDescription
     } as Message.CSessionDescription));
 
-    this.#rtcChannel.on("peerRemoteDescriptionSet", ({ socketId, sessionDescription }) => this.#socketHandler.send({
+    this.#rtcChannel.on(RTCChannelEventType.PEER_REMOTE_DESCRIPTION_SET, (socketId, sessionDescription) => this.#socketHandler.send({
       type: SocketMessageType.SESSION_DESCRIPTION,
       socketId,
       sessionDescription
@@ -127,20 +125,27 @@ export default class Client {
   }
 
   private handleRoomEvents() {
-    this.#room.on("localPositionChanged", (position: Point) => {
+    this.#room.on(RoomEventType.LOCAL_POSITION_CHANGED, (position: Point) => {
       this.localPeerController.updatePosition(position);
 
       this.sendUpdatePeerPositionMessage(position);
     });
 
-    this.#room.on("peerGainChanged", ({ socketId, gain }) => {
+    this.#room.on(RoomEventType.PEER_GAIN_CHANGED, (socketId, gain) => {
       this.#peerControllers[socketId].mediaController.setGain(gain);
     })
   }
 
-  private async streamLocalMediaToPeer(socketId: string, peerConnection: RTCPeerConnection) {
+  private async streamLocalMediaToPeer(socketId: string, peerConnection: RTCPeerConnection, shouldCreateOffer: boolean) {
     const localMediaController = this.localPeerController.mediaController;
     const peerMediaController = this.#peerControllers[socketId].mediaController;
+
+    if (shouldCreateOffer) {
+      peerMediaController.on(PeerMediaControllerEventType.MEDIA_TRACKS_ADDED, async () => {
+        Logger.info(`Tracks added, '${socketId}' should create offer`)
+        // await this.#rtcChannel.createRTCOffer(socketId);
+      });
+    }
 
     await peerMediaController.setupRemoteMediaStream(peerConnection, localMediaController);
   }

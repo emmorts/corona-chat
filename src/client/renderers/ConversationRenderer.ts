@@ -1,7 +1,7 @@
 import { Sprite, Texture } from "pixi.js";
 import { Conversation } from "client/models/Conversation";
 import { getOffscreenCanvas, createRadialGradient } from "client/utils/GraphicsUtils";
-import { IRenderer } from "client/renderers.ts/IRenderer";
+import { IRenderer } from "client/renderers/IRenderer";
 
 const CONVERSATION_COLOR = 0xEEFB54;
 const ConversationTexture = createTexture();

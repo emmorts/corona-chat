@@ -1,16 +1,17 @@
 import { Point } from "common/Structures";
 import Peer from "common/Peer";
-import RTCMediaStream from "client/RTCMediaStream";
-import PeerMediaController from "client/PeerMediaController";
+import PeerMediaController, { PeerMediaControllerEventType } from "client/PeerMediaController";
 import PeerGraphicsController from "client/PeerGraphicsController";
+import ControlsManager, { ControlItemType, ControlsManagerEventType } from "client/ControlsManager";
 
 export default class PeerController {
   #peer: Peer;
+  #controlsManager: ControlsManager;
   #mediaController: PeerMediaController = new PeerMediaController();
   #graphicsController: PeerGraphicsController = new PeerGraphicsController();
 
   constructor() {
-    this.#mediaController.once("mediaStreamStarted", () => this.updateCameraPosition());
+    this.#mediaController.once(PeerMediaControllerEventType.VIDEO_STREAM_STARTED, () => this.updateCameraPosition());
   }
 
   get peer() {
@@ -19,6 +20,10 @@ export default class PeerController {
 
   set peer(peer: Peer) {
     this.#peer = peer;
+
+    if (peer.isOwner) {
+      this.#controlsManager = this.setupControlsManager();
+    }
 
     this.updateCameraPosition();
   }
@@ -29,18 +34,6 @@ export default class PeerController {
 
   get graphicsController() {
     return this.#graphicsController;
-  }
-
-  get hasMediaStream() {
-    return this.#mediaController.hasMediaStream;
-  }
-
-  get nativeMediaStream() {
-    return this.#mediaController.nativeMediaStream;
-  }
-
-  get mediaStream() {
-    return this.#mediaController.mediaStream;
   }
 
   updatePosition(position: Point) {
@@ -55,10 +48,42 @@ export default class PeerController {
     this.#mediaController.destroy();
   }
 
+  private setupControlsManager() {
+    const controlsManager = new ControlsManager();
+
+    controlsManager.bind();
+    controlsManager.on(ControlsManagerEventType.CONTROL_ENABLED, this.handleControlEnabled.bind(this));
+    controlsManager.on(ControlsManagerEventType.CONTROL_DISABLED, this.handleControlDisabled.bind(this));
+
+    return controlsManager;
+  }
+
   private updateCameraPosition() {
-    if (this.#mediaController.hasMediaStream && this.peer) {
-      this.#mediaController.mediaElement.style.top = `${this.peer.position.y - 70}px`;
-      this.#mediaController.mediaElement.style.left = `${this.peer.position.x + 55}px`;
+    this.#mediaController.updateVideoStreamPosition({
+      x: this.peer.position.x + 55,
+      y: this.peer.position.y - 70
+    });
+  }
+
+  private async handleControlEnabled(type: ControlItemType) {
+    switch (type) {
+      case "camera":
+        await this.#mediaController.setupLocalVideoStream();
+        break;
+      case "microphone":
+        await this.#mediaController.setupLocalAudioStream();
+        break;
+    }
+  }
+
+  private handleControlDisabled(type: ControlItemType) {
+    switch (type) {
+      case "camera":
+        this.#mediaController.removeLocalVideoStream();
+        break;
+      case "microphone":
+        this.#mediaController.removeLocalAudioStream();
+        break;
     }
   }
 }

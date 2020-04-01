@@ -1,8 +1,8 @@
 import { SmartMap } from "smartmap";
-import { EventEmitter } from "common/EventEmitter";
+import EventEmitter from "common/EventEmitter";
 import { Point } from "common/Structures";
 import Peer from "common/Peer";
-import RoomRenderer from "client/RoomRenderer";
+import RoomRenderer, { RendererEventType } from "client/RoomRenderer";
 import { getHeuristicDistance } from "client/utils/MathUtils";
 import PeerGraphicsController from "client/PeerGraphicsController";
 import { ClusterPoint, findClusters, Cluster } from "client/utils/ClusterUtils";
@@ -10,9 +10,17 @@ import { Conversation } from "client/models/Conversation";
 
 const CONVERSATION_SIZE_INCREMENT = 50;
 
-export type RoomEventType = "localPositionChanged" | "peerGainChanged";
+export enum RoomEventType {
+  LOCAL_POSITION_CHANGED,
+  PEER_GAIN_CHANGED,
+};
 
-export default class Room extends EventEmitter<RoomEventType> {
+interface RoomEventConfiguration {
+  [RoomEventType.LOCAL_POSITION_CHANGED]: { (position: Point): void };
+  [RoomEventType.PEER_GAIN_CHANGED]: { (socketId: string, gain: number): void };
+};
+
+export default class Room extends EventEmitter<RoomEventConfiguration> {
   #renderer = new RoomRenderer();
   #peers: Peer[] = [];
   #conversations: SmartMap<Conversation> = new SmartMap("hashCode");
@@ -20,7 +28,7 @@ export default class Room extends EventEmitter<RoomEventType> {
   constructor() {
     super();
 
-    this.#renderer.on("localPositionChanged", (position: Point) => this.handlePeerCellMove(position));
+    this.#renderer.on(RendererEventType.LOCAL_POSITION_CHANGED, (position: Point) => this.handlePeerCellMove(position));
   }
 
   get localPeer() {
@@ -78,7 +86,7 @@ export default class Room extends EventEmitter<RoomEventType> {
     this.updatePeerGains();
     this.updateConversations();
 
-    this.fire("localPositionChanged", position);
+    this.fire(RoomEventType.LOCAL_POSITION_CHANGED, position);
   }
 
   private updatePeerGains() {
@@ -90,10 +98,7 @@ export default class Room extends EventEmitter<RoomEventType> {
         const distanceToPeer = getHeuristicDistance(localPosition, peer.position);
         const gain = this.getGainFromDistance(distanceToPeer, localAudioRange);
 
-        this.fire("peerGainChanged", {
-          socketId: peer.socketId,
-          gain
-        })
+        this.fire(RoomEventType.PEER_GAIN_CHANGED, peer.socketId, gain);
       }
     });
   }

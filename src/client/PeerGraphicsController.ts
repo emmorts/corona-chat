@@ -1,12 +1,18 @@
 import * as pixi from "pixi.js";
 import Peer from "common/Peer";
 import { drawPeerCell, drawPeerCellName, drawPeerAudioRange } from "client/utils/GraphicsUtils";
-import { EventEmitter } from "common/EventEmitter";
+import EventEmitter from "common/EventEmitter";
 import { Point } from "common/Structures";
 
-type PeerGraphicsEventType = "cellMove";
+export enum PeerGraphicsEventType {
+  CELL_MOVE
+};
 
-export default class PeerGraphicsController extends EventEmitter<PeerGraphicsEventType> {
+interface PeerGraphicsEventConfiguration {
+  [PeerGraphicsEventType.CELL_MOVE]: { (position: Point): void };
+};
+
+export default class PeerGraphicsController extends EventEmitter<PeerGraphicsEventConfiguration> {
   #displayObjects: pixi.DisplayObject[] = [];
 
   #cellGraphics: pixi.Graphics;
@@ -35,8 +41,8 @@ export default class PeerGraphicsController extends EventEmitter<PeerGraphicsEve
       name: peer.name,
       position: peer.position,
       isOwner: peer.isOwner,
-      onDrag: position => this.fire("cellMove", position),
-      onDragEnd: position => this.fire("cellMove", position)
+      onDrag: position => this.fire(PeerGraphicsEventType.CELL_MOVE, position),
+      onDragEnd: position => this.fire(PeerGraphicsEventType.CELL_MOVE, position)
     });
 
     this.#displayObjects.push(this.#cellGraphics);

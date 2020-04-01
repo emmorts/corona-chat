@@ -1,18 +1,26 @@
-import { EventEmitter } from "common/EventEmitter";
+import EventEmitter from "common/EventEmitter";
+import Logger from "common/Logger";
 
-export type P2PMediaStreamConstructorOptions = MediaStreamConstraints & {
+export type RTCMediaStreamConstructorOptions = MediaStreamConstraints & {
   muted?: boolean;
   playsInline?: boolean;
 };
 
-type P2PMediaStreamEventType = "started";
+export enum RTCMediaStreamEventType {
+  STARTED
+};
 
-export default class RTCMediaStream extends EventEmitter<P2PMediaStreamEventType> {
-  #options: P2PMediaStreamConstructorOptions;
+interface RTCMediaStreamEventConfiguration {
+  [RTCMediaStreamEventType.STARTED]: { (): void };
+};
+
+export default class RTCMediaStream extends EventEmitter<RTCMediaStreamEventConfiguration> {
+  #options: RTCMediaStreamConstructorOptions;
   #mediaStream: MediaStream;
   #mediaElement: HTMLAudioElement | HTMLVideoElement;
+  #isAttached = false;
 
-  constructor(options?: P2PMediaStreamConstructorOptions) {
+  constructor(options?: RTCMediaStreamConstructorOptions) {
     super();
 
     this.#options = {
@@ -30,6 +38,10 @@ export default class RTCMediaStream extends EventEmitter<P2PMediaStreamEventType
     }
   }
 
+  get isAttached() {
+    return this.#isAttached;
+  }
+
   get mediaStream() {
     return this.#mediaStream;
   }
@@ -39,12 +51,16 @@ export default class RTCMediaStream extends EventEmitter<P2PMediaStreamEventType
   }
 
   setMute(mute: boolean) {
-    if (mute) {
-      this.#mediaElement.setAttribute("muted", "");
-      this.#mediaStream.getAudioTracks()[0].enabled = false;
+    if (this.#mediaStream) {
+      if (mute) {
+        this.#mediaElement.setAttribute("muted", "");
+        this.#mediaStream.getAudioTracks()[0].enabled = false;
+      } else {
+        this.#mediaElement.removeAttribute("muted");
+        this.#mediaStream.getAudioTracks()[0].enabled = true;
+      }
     } else {
-      this.#mediaElement.removeAttribute("muted");
-      this.#mediaStream.getAudioTracks()[0].enabled = true;
+      Logger.error("Failed to toggle mute - media stream not attached");
     }
   }
 
@@ -66,38 +82,57 @@ export default class RTCMediaStream extends EventEmitter<P2PMediaStreamEventType
 
   attachMediaElement(stream: MediaStream) {
     this.#mediaStream = stream;
-
-    this.#mediaElement = this.#options.video
-      ? document.createElement("video")
-      : document.createElement("audio");
-
-    this.#mediaElement.muted = this.#options.muted;
-
-    this.#mediaElement.setAttribute("autoplay", "autoplay");
-
-    if (this.#options.playsInline) {
-      this.#mediaElement.setAttribute("playsinline", "");
+    this.#mediaStream.onremovetrack = (event: MediaStreamTrackEvent) => {
+      this.remove();
     }
 
-    if (this.#options.muted) {
-      this.#mediaElement.setAttribute("muted", "");
-    }
+    this.#mediaElement = this.createMediaElement(stream);
 
-    this.#mediaElement.setAttribute("controls", "");
+    this.#isAttached = true;
 
-    document.body.appendChild(this.#mediaElement);
-    
-    if ("srcObject" in this.#mediaElement) {
-      this.#mediaElement.srcObject = stream;
-    } else {
-      (this.#mediaElement as any).src = window.URL.createObjectURL(stream); // for older browsers
-    }
-
-    this.fire("started");
+    this.fire(RTCMediaStreamEventType.STARTED);
   }
 
   remove() {
     document.body.removeChild(this.#mediaElement);
+
+    for (const track of this.#mediaStream.getTracks()) {
+      this.#mediaStream.removeTrack(track);
+    }
+
+    this.#mediaStream = null;
+
+    this.#isAttached = false;
+  }
+
+  private createMediaElement(stream: MediaStream): HTMLAudioElement | HTMLVideoElement {
+    const mediaElement = this.#options.video
+      ? document.createElement("video")
+      : document.createElement("audio");
+
+    mediaElement.muted = this.#options.muted;
+
+    mediaElement.setAttribute("autoplay", "autoplay");
+
+    if (this.#options.playsInline) {
+      mediaElement.setAttribute("playsinline", "");
+    }
+
+    if (this.#options.muted) {
+      mediaElement.setAttribute("muted", "");
+    }
+
+    mediaElement.setAttribute("controls", "");
+
+    document.body.appendChild(mediaElement);
+    
+    if ("srcObject" in mediaElement) {
+      mediaElement.srcObject = stream;
+    } else {
+      (mediaElement as any).src = window.URL.createObjectURL(stream); // for older browsers
+    }
+
+    return mediaElement;
   }
 
   private _getUserMedia(): Promise<MediaStream> {

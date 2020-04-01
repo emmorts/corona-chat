@@ -1,6 +1,6 @@
 import SocketHandler from "client/SocketHandler";
 import { SSessionDescription, SAddPeer, SIceCandidate } from "common/Messages";
-import { EventEmitter } from "common/EventEmitter";
+import EventEmitter from "common/EventEmitter";
 import config from "common/config";
 import { SocketMessageType } from "common/SocketMessageType";
 import Logger from "common/Logger";
@@ -10,9 +10,23 @@ const ICE_SERVERS: RTCIceServer[] = [
   ...config.turnServers
 ];
 
-type P2PChannelEventType = "peerAdded" | "peerRemoved" | "peerLocalDescriptionSet" | "peerRemoteDescriptionSet" | "iceCandidateSet";
+export enum RTCChannelEventType {
+  PEER_ADDED,
+  PEER_REMOVED,
+  PEER_LOCAL_DESCRIPTION_SET,
+  PEER_REMOTE_DESCRIPTION_SET,
+  ICE_CANDIDATE_SET,
+};
 
-export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
+interface RTCChannelEventConfiguration {
+  [RTCChannelEventType.PEER_ADDED]: { (socketId: string, peerConnection: RTCPeerConnection, shouldCreateOffer: boolean): void };
+  [RTCChannelEventType.PEER_REMOVED]: { (socketId: string): void };
+  [RTCChannelEventType.PEER_LOCAL_DESCRIPTION_SET]: { (socketId: string, sessionDescription: RTCSessionDescriptionInit): void };
+  [RTCChannelEventType.PEER_REMOTE_DESCRIPTION_SET]: { (socketId: string, sessionDescription: RTCSessionDescriptionInit): void };
+  [RTCChannelEventType.ICE_CANDIDATE_SET]: { (socketId: string, iceCandidate: RTCIceCandidateInit): void };
+};
+
+export default class RTCChannel extends EventEmitter<RTCChannelEventConfiguration> {
   #peers: {
     [socketId: string]: RTCPeerConnection
   } = {};
@@ -21,24 +35,6 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
     socketHandler.on(SocketMessageType.ADD_PEER, async message => await this.handleAddPeer(message));
     socketHandler.on(SocketMessageType.ICE_CANDIDATE, message => this.handleICECandidate(message));
     socketHandler.on(SocketMessageType.SESSION_DESCRIPTION, async message => await this.handleSessionDescription(message));
-  }
-
-  async createRTCOffer(socketId: string): Promise<RTCSessionDescriptionInit> {
-    const peerConnection = this.#peers[socketId];
-
-    try {
-      const sessionDescription = await peerConnection.createOffer();
-
-      await peerConnection.setLocalDescription(sessionDescription);
-
-      this.fire("peerLocalDescriptionSet", {
-        socketId,
-        sessionDescription: sessionDescription
-      });
-      return sessionDescription;
-    } catch (error) {
-      throw new Error(`Failed to create RTC offer (${error})`);
-    }
   }
 
   close(socketId: string) {
@@ -73,21 +69,29 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
     
     peerConnection.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
-        this.fire("iceCandidateSet", {
-          socketId,
-          iceCandidate: {
-            sdpMLineIndex: event.candidate.sdpMLineIndex,
-            candidate: event.candidate.candidate
-          }
+        this.fire(RTCChannelEventType.ICE_CANDIDATE_SET, socketId,  {
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+          candidate: event.candidate.candidate
         });
       }
     }
 
-    this.fire("peerAdded", {
-      socketId,
-      peerConnection,
-      shouldCreateOffer
-    });
+    peerConnection.onnegotiationneeded = async () => {
+      console.log(`Creating offer for`, peerConnection);
+      const sessionDescription = await peerConnection.createOffer();
+      if (peerConnection.signalingState !== "stable") return;
+
+      await peerConnection.setLocalDescription(sessionDescription);
+
+      // return sessionDescription;
+      // const sessionDescription = await this.createRTCOffer(peerConnection);
+
+      this.fire(RTCChannelEventType.PEER_LOCAL_DESCRIPTION_SET, socketId, sessionDescription);
+    }
+
+    Logger.info(`Added peer '${socketId}'`);
+
+    this.fire(RTCChannelEventType.PEER_ADDED, socketId, peerConnection, shouldCreateOffer);
   }
 
   private async handleSessionDescription(message: SSessionDescription) {
@@ -96,22 +100,50 @@ export default class P2PChannel extends EventEmitter<P2PChannelEventType> {
     const peerConnection = this.#peers[socketId];
 
     try {
-      await peerConnection.setRemoteDescription(remoteSessionDescription);
+      const promises: Promise<void>[] = [
+        peerConnection.setRemoteDescription(remoteSessionDescription)
+      ];
+
+      if (remoteSessionDescription.type === "offer") {
+        if (peerConnection.signalingState !== "stable") {
+          promises.splice(0, 0, peerConnection.setLocalDescription({ type: "rollback" }));
+        }
+      }
+
+      await Promise.all(promises);
 
       if (remoteSessionDescription.type === "offer") {
         const peerSessionDescription = await this.createRTCAnswer(peerConnection);
 
-        Logger.info(`RTC remote session description has been successfully set`);
+        Logger.info(`RTC remote SDP has been successfully set`);
 
-        this.fire("peerRemoteDescriptionSet", {
-          socketId,
-          sessionDescription: peerSessionDescription
-        });
+        this.fire(RTCChannelEventType.PEER_REMOTE_DESCRIPTION_SET, socketId, peerSessionDescription);
       }
+      // await peerConnection.setRemoteDescription(remoteSessionDescription);
+
+      // if (remoteSessionDescription.type === "offer") {
+      //   const peerSessionDescription = await this.createRTCAnswer(peerConnection);
+
+      //   Logger.info(`RTC remote SDP has been successfully set`);
+
+      //   this.fire(RTCChannelEventType.PEER_REMOTE_DESCRIPTION_SET, socketId, peerSessionDescription);
+      // }
     } catch (error) {
       Logger.error(`Failed to set remote session description (${error})`);
     }
   }
+
+  // private async createRTCOffer(peerConnection: RTCPeerConnection): Promise<RTCSessionDescriptionInit> {
+  //   try {
+  //     const sessionDescription = await peerConnection.createOffer();
+
+  //     await peerConnection.setLocalDescription(sessionDescription);
+
+  //     return sessionDescription;
+  //   } catch (error) {
+  //     throw new Error(`Failed to create RTC offer (${error})`);
+  //   }
+  // }
 
   private async createRTCAnswer(peerConnection: RTCPeerConnection): Promise<RTCSessionDescriptionInit> {
     try {
