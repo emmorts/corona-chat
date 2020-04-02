@@ -77,8 +77,4 @@ export default class SocketHandler extends EventEmitter<MessageHandlerEventConfi
     } as Message.CPong);
   }
 
-  private isMessageRegistered(type: any, object: any): object is MessageHandlerEventConfiguration {
-    return type in object;
-  }
-
 }

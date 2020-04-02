@@ -1,14 +1,14 @@
-import RTCMediaStream, { RTCMediaStreamEventType } from "client/RTCMediaStream";
+import RTCMediaStream from "client/RTCMediaStream";
 import EventEmitter from "common/EventEmitter";
 import Logger from "common/Logger";
 import { Point } from "common/Structures";
 import { visualiseAnalyser } from "client/utils/AnalyserUtils";
 
 export enum PeerMediaControllerEventType {
-  AUDIO_STREAM_STARTED = "AUDIO_STREAM_STARTED",
-  AUDIO_STREAM_STOPPED = "AUDIO_STREAM_STOPPED",
-  VIDEO_STREAM_STARTED = "VIDEO_STREAM_STARTED",
-  VIDEO_STREAM_STOPPED = "VIDEO_STREAM_STOPPED",
+  AUDIO_STREAM_STARTED,
+  AUDIO_STREAM_STOPPED,
+  VIDEO_STREAM_STARTED,
+  VIDEO_STREAM_STOPPED,
 };
 
 interface PeerMediaControllerEventConfiguration {
@@ -28,10 +28,6 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
   #audioStream: RTCMediaStream;
   #videoStream: RTCMediaStream;
   #peerAudioFilterConfigurationMap = new Map<string, PeerAudioFilterConfiguration>();
-
-  get peerAudioFilterConfigurationMap() {
-    return this.#peerAudioFilterConfigurationMap;
-  }
 
   get audioTracks() {
     return this.#audioStream?.mediaStream.getAudioTracks() ?? [];
