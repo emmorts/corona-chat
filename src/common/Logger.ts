@@ -26,27 +26,27 @@ class Logger {
     }
   }
 
-  trace(message: string) {
+  trace(message: string, ...optionalParams: any[]) {
     if (this.#logger) {
-      this.#logger.log(message, LogLevel.TRACE);
+      this.#logger.log(message, LogLevel.TRACE, ...optionalParams);
     }
   }
 
-  info(message: string) {
+  info(message: string, ...optionalParams: any[]) {
     if (this.#logger) {
-      this.#logger.log(message, LogLevel.INFO);
+      this.#logger.log(message, LogLevel.INFO, ...optionalParams);
     }
   }
 
-  warn(message: string) {
+  warn(message: string, ...optionalParams: any[]) {
     if (this.#logger) {
-      this.#logger.log(message, LogLevel.WARN);
+      this.#logger.log(message, LogLevel.WARN, ...optionalParams);
     }
   }
 
-  error(message: string) {
+  error(message: string, ...optionalParams: any[]) {
     if (this.#logger) {
-      this.#logger.log(message, LogLevel.ERROR);
+      this.#logger.log(message, LogLevel.ERROR, ...optionalParams);
     }
   }
 }

@@ -20,15 +20,15 @@ export default abstract class AbstractLogger implements ILogger {
     return logger;
   }
 
-  log(message: string, severity: LogLevel) {
+  log(message: string, severity: LogLevel, ...optionalParams: any[]) {
     if ((severity & this._mask) !== 0) {
-      this._log(message, severity);
+      this._log(message, severity, ...optionalParams);
     }
 
     if (this._next) {
-      this._next.log(message, severity);
+      this._next.log(message, severity, ...optionalParams);
     }
   }
 
-  abstract _log(message: string, severity: LogLevel): void;
+  protected abstract _log(message: string, severity: LogLevel, ...optionalParams: any[]): void;
 }

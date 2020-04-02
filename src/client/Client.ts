@@ -132,7 +132,7 @@ export default class Client {
     });
 
     this.#room.on(RoomEventType.PEER_GAIN_CHANGED, (socketId, gain) => {
-      this.#peerControllers[socketId].mediaController.setGain(gain);
+      this.localPeerController.mediaController.setGain(socketId, gain);
     })
   }
 
@@ -140,14 +140,7 @@ export default class Client {
     const localMediaController = this.localPeerController.mediaController;
     const peerMediaController = this.#peerControllers[socketId].mediaController;
 
-    if (shouldCreateOffer) {
-      peerMediaController.on(PeerMediaControllerEventType.MEDIA_TRACKS_ADDED, async () => {
-        Logger.info(`Tracks added, '${socketId}' should create offer`)
-        // await this.#rtcChannel.createRTCOffer(socketId);
-      });
-    }
-
-    await peerMediaController.setupRemoteMediaStream(peerConnection, localMediaController);
+    await peerMediaController.startRemoteMediaStream(socketId, peerConnection, localMediaController);
   }
 
   private sendJoinChannelMessage() {

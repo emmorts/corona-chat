@@ -68,10 +68,10 @@ export default class PeerController {
   private async handleControlEnabled(type: ControlItemType) {
     switch (type) {
       case "camera":
-        await this.#mediaController.setupLocalVideoStream();
+        await this.#mediaController.startLocalVideoStream();
         break;
       case "microphone":
-        await this.#mediaController.setupLocalAudioStream();
+        await this.#mediaController.startLocalAudioStream();
         break;
     }
   }
@@ -79,10 +79,10 @@ export default class PeerController {
   private handleControlDisabled(type: ControlItemType) {
     switch (type) {
       case "camera":
-        this.#mediaController.removeLocalVideoStream();
+        this.#mediaController.stopLocalVideoStream();
         break;
       case "microphone":
-        this.#mediaController.removeLocalAudioStream();
+        this.#mediaController.stopLocalAudioStream();
         break;
     }
   }

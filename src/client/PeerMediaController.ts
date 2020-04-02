@@ -1,11 +1,10 @@
-import RTCMediaStream from "client/RTCMediaStream";
+import RTCMediaStream, { RTCMediaStreamEventType } from "client/RTCMediaStream";
 import EventEmitter from "common/EventEmitter";
-import { ControlItemType } from "client/ControlsManager";
 import Logger from "common/Logger";
 import { Point } from "common/Structures";
+import { visualiseAnalyser } from "client/utils/AnalyserUtils";
 
 export enum PeerMediaControllerEventType {
-  MEDIA_TRACKS_ADDED = "MEDIA_TRACKS_ADDED",
   AUDIO_STREAM_STARTED = "AUDIO_STREAM_STARTED",
   AUDIO_STREAM_STOPPED = "AUDIO_STREAM_STOPPED",
   VIDEO_STREAM_STARTED = "VIDEO_STREAM_STARTED",
@@ -13,21 +12,26 @@ export enum PeerMediaControllerEventType {
 };
 
 interface PeerMediaControllerEventConfiguration {
-  [PeerMediaControllerEventType.MEDIA_TRACKS_ADDED]: { (): void };
   [PeerMediaControllerEventType.AUDIO_STREAM_STARTED]: { (stream: MediaStream): void };
   [PeerMediaControllerEventType.AUDIO_STREAM_STOPPED]: { (): void };
   [PeerMediaControllerEventType.VIDEO_STREAM_STARTED]: { (stream: MediaStream): void };
   [PeerMediaControllerEventType.VIDEO_STREAM_STOPPED]: { (): void };
 }
 
+interface PeerAudioFilterConfiguration {
+  context: AudioContext;
+  gainFilter: GainNode;
+  analyserFilter?: AnalyserNode;
+};
+
 export default class PeerMediaController extends EventEmitter<PeerMediaControllerEventConfiguration> {
-  #audioContext: AudioContext = new AudioContext();
-  #mediaStream: RTCMediaStream;
   #audioStream: RTCMediaStream;
   #videoStream: RTCMediaStream;
+  #peerAudioFilterConfigurationMap = new Map<string, PeerAudioFilterConfiguration>();
 
-  #gainFilter = this.#audioContext.createGain();
-  #filters: AudioNode[] = [ this.#gainFilter ];
+  get peerAudioFilterConfigurationMap() {
+    return this.#peerAudioFilterConfigurationMap;
+  }
 
   get audioTracks() {
     return this.#audioStream?.mediaStream.getAudioTracks() ?? [];
@@ -59,7 +63,7 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     return streams;
   }
 
-  async setupLocalAudioStream() {
+  async startLocalAudioStream() {
     this.#audioStream = new RTCMediaStream({ muted: true, audio: true, video: false });
     
     const stream = await this.#audioStream.getUserMedia();
@@ -69,7 +73,7 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     this.fire(PeerMediaControllerEventType.AUDIO_STREAM_STARTED, stream);
   }
 
-  removeLocalAudioStream() {
+  stopLocalAudioStream() {
     if (this.#audioStream && this.#audioStream.isAttached) {
       this.#audioStream.remove();
 
@@ -79,7 +83,7 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     }
   }
 
-  async setupLocalVideoStream() {
+  async startLocalVideoStream() {
     this.#videoStream = new RTCMediaStream({ muted: true, audio: false, video: true });
     
     const stream = await this.#videoStream.getUserMedia();
@@ -89,7 +93,7 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     this.fire(PeerMediaControllerEventType.VIDEO_STREAM_STARTED, stream);
   }
 
-  removeLocalVideoStream() {
+  stopLocalVideoStream() {
     if (this.#videoStream && this.#videoStream.isAttached) {
       this.#videoStream.remove();
 
@@ -99,54 +103,21 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     }
   }
 
-  async setupRemoteMediaStream(peerConnection: RTCPeerConnection, localMediaController: PeerMediaController) {
-    peerConnection.ontrack = (event: RTCTrackEvent) => {
-      console.log("ontrack", event);
+  async startRemoteMediaStream(socketId: string, peerConnection: RTCPeerConnection, localMediaController: PeerMediaController) {
+    peerConnection.ontrack = this.handleTrackAdded.bind(this);
 
-      if (!this.#mediaStream) {
-        const stream = event.streams[0];
-        const isVideo = event.track.kind === "video";
-
-        if (isVideo) {
-          this.#videoStream = new RTCMediaStream({ muted: false, video: true, audio: false });
-          this.#videoStream.attachMediaElement(stream);
-
-          this.fire(PeerMediaControllerEventType.VIDEO_STREAM_STARTED, stream);
-        } else {
-          this.#audioStream = new RTCMediaStream({ muted: false, video: false, audio: true });
-          this.#audioStream.attachMediaElement(stream);
-
-          this.fire(PeerMediaControllerEventType.AUDIO_STREAM_STARTED, stream);
-        }
-      }
-    }
-
-    if (localMediaController.streams.length) {
-      const sender = this.addLocalTracksToPeer(peerConnection, localMediaController.streams);
-
-      localMediaController.on([ PeerMediaControllerEventType.AUDIO_STREAM_STOPPED, PeerMediaControllerEventType.VIDEO_STREAM_STOPPED ], () => {
-        peerConnection.removeTrack(sender)
-      });
-    }
-
-    localMediaController.on([ PeerMediaControllerEventType.AUDIO_STREAM_STARTED, PeerMediaControllerEventType.VIDEO_STREAM_STARTED ], (stream) => {
-      const sender = this.addLocalTracksToPeer(peerConnection, [ stream ]);
-
-      localMediaController.on([ PeerMediaControllerEventType.AUDIO_STREAM_STOPPED, PeerMediaControllerEventType.VIDEO_STREAM_STOPPED ], () => {
-        peerConnection.removeTrack(sender)
-      });
-    });
+    this.setupRemoteMediaStream(socketId, peerConnection, localMediaController);
   }
 
-  setGain(value: number) {
-    if (this.#mediaStream) {
+  setGain(socketId: string, value: number) {
+    if (this.#audioStream) {
+      const audioFilterConfiguration = this.#peerAudioFilterConfigurationMap.get(socketId);
+
       const gainMax = 2;
       const gainMin = 0;
-      const gainValue = value * (gainMax - gainMin) / 100 + gainMin
+      const gainValue = value * (gainMax - gainMin) / 100 + gainMin;
 
-      this.#mediaStream.setMute(value === 0);
-
-      this.#gainFilter.gain.setValueAtTime(gainValue, this.#audioContext.currentTime);
+      audioFilterConfiguration.gainFilter.gain.setValueAtTime(gainValue, audioFilterConfiguration.context.currentTime);
     }
   }
 
@@ -157,18 +128,87 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     }
   }
 
+  hasPeerAudioFilters(socketId: string) {
+    return this.#peerAudioFilterConfigurationMap.has(socketId);
+  }
+
+  getPeerAudioFilters(socketId: string) {
+    return this.#peerAudioFilterConfigurationMap.get(socketId);
+  }
+
+  setupPeerAudioFilters(socketId: string) {
+    const context = new AudioContext();
+
+    const gainFilter = context.createGain();
+    gainFilter.gain.value = 1;
+
+    const analyserFilter = context.createAnalyser();
+    analyserFilter.fftSize = 256;
+    
+    this.#peerAudioFilterConfigurationMap.set(socketId, {
+      context,
+      gainFilter,
+      analyserFilter
+    });
+
+    console.debug(`Peer '${socketId}' audio filter configuration has been added`);
+  }
+
   destroy() {
-    if (this.#mediaStream) {
-      this.#mediaStream.remove();
+    if (this.#audioStream) {
+      this.#audioStream.remove();
+    }
+    if (this.#videoStream) {
+      this.#videoStream.remove();
     }
   }
 
-  private addLocalTracksToPeer(peerConnection: RTCPeerConnection, streams: MediaStream[]): RTCRtpSender {
+  private setupRemoteMediaStream(socketId: string, peerConnection: RTCPeerConnection, localMediaController: PeerMediaController) {
+    if (!localMediaController.hasPeerAudioFilters(socketId)) {
+      localMediaController.setupPeerAudioFilters(socketId);
+    }
+
+    if (localMediaController.streams.length) {
+      this.streamToPeer(socketId, peerConnection, localMediaController, localMediaController.streams);
+    }
+
+    localMediaController.on([ PeerMediaControllerEventType.AUDIO_STREAM_STARTED, PeerMediaControllerEventType.VIDEO_STREAM_STARTED ], (stream) => {
+      this.streamToPeer(socketId, peerConnection, localMediaController, [ stream ]);
+    });
+  }
+
+  private streamToPeer(socketId: string, peerConnection: RTCPeerConnection, localMediaController: PeerMediaController, streams: MediaStream[]) {
+    const audioFiltersConfiguration = localMediaController.getPeerAudioFilters(socketId);
+    const sender = this.addLocalStreamsToPeer(peerConnection, streams, audioFiltersConfiguration);
+
+    localMediaController.on([ PeerMediaControllerEventType.AUDIO_STREAM_STOPPED, PeerMediaControllerEventType.VIDEO_STREAM_STOPPED ], () => {
+      peerConnection.removeTrack(sender);
+    });
+  }
+
+  private handleTrackAdded(event: RTCTrackEvent) {
+    const stream = event.streams[0];
+    const isVideo = event.track.kind === "video";
+
+    if (isVideo) {
+      this.#videoStream = new RTCMediaStream({ muted: false, video: true, audio: false });
+      this.#videoStream.attachMediaElement(stream);
+
+      this.fire(PeerMediaControllerEventType.VIDEO_STREAM_STARTED, stream);
+    } else {
+      this.#audioStream = new RTCMediaStream({ muted: false, video: false, audio: true });
+      this.#audioStream.attachMediaElement(stream);
+
+      this.fire(PeerMediaControllerEventType.AUDIO_STREAM_STARTED, stream);
+    }
+  }
+
+  private addLocalStreamsToPeer(peerConnection: RTCPeerConnection, streams: MediaStream[], audioFiltersConfiguration: PeerAudioFilterConfiguration): RTCRtpSender {
     let rtcRtpSender: RTCRtpSender;
 
     streams.forEach(stream => {
       for (const audioTrack of stream.getAudioTracks()) {
-        rtcRtpSender = peerConnection.addTrack(this.addAudioFiltersToTrack(audioTrack), stream);
+        rtcRtpSender = peerConnection.addTrack(this.addAudioFiltersToTrack(audioFiltersConfiguration, audioTrack), stream);
       }
   
       for (const videoTrack of stream.getVideoTracks()) {
@@ -176,18 +216,24 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
       }
     });
 
-    this.fire(PeerMediaControllerEventType.MEDIA_TRACKS_ADDED);
-
     return rtcRtpSender;
   }
 
-  private addAudioFiltersToTrack(track: MediaStreamTrack): MediaStreamTrack {
-    const streamSource = this.#audioContext.createMediaStreamSource(new MediaStream([ track ]));
-    const streamDestination = this.#audioContext.createMediaStreamDestination();
+  private addAudioFiltersToTrack(filterConfiguration: PeerAudioFilterConfiguration, track: MediaStreamTrack): MediaStreamTrack {
+    const streamSource = filterConfiguration.context.createMediaStreamSource(new MediaStream([ track ]));
+    const streamDestination = filterConfiguration.context.createMediaStreamDestination();
 
-    this.connectAudioFilters(streamSource, [...this.#filters, streamDestination]);
+    const audioFilters: AudioNode[] = [
+      filterConfiguration.gainFilter
+    ];
 
-    this.#gainFilter.gain.value = 1;
+    if (filterConfiguration.analyserFilter) {
+      audioFilters.push(filterConfiguration.analyserFilter);
+
+      visualiseAnalyser(filterConfiguration.analyserFilter);
+    }
+
+    this.connectAudioFilters(streamSource, [...audioFilters, streamDestination]);
 
     const filteredMediaStreamTrack = streamDestination.stream.getAudioTracks()[0];
 
@@ -195,8 +241,6 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
   }
 
   private connectAudioFilters(source: MediaStreamAudioSourceNode, filters: AudioNode[]) {
-    filters.reduce((previousFilterNode: AudioNode, currentFilterNode: AudioNode) => {
-      return previousFilterNode.connect(currentFilterNode);
-    }, source);
+    filters.reduce((previousFilterNode: AudioNode, currentFilterNode: AudioNode) => previousFilterNode.connect(currentFilterNode), source);
   }
 }

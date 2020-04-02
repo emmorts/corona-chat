@@ -77,16 +77,13 @@ export default class RTCChannel extends EventEmitter<RTCChannelEventConfiguratio
     }
 
     peerConnection.onnegotiationneeded = async () => {
-      console.log(`Creating offer for`, peerConnection);
       const sessionDescription = await peerConnection.createOffer();
-      if (peerConnection.signalingState !== "stable") return;
 
-      await peerConnection.setLocalDescription(sessionDescription);
-
-      // return sessionDescription;
-      // const sessionDescription = await this.createRTCOffer(peerConnection);
-
-      this.fire(RTCChannelEventType.PEER_LOCAL_DESCRIPTION_SET, socketId, sessionDescription);
+      if (peerConnection.signalingState === "stable") {
+        await peerConnection.setLocalDescription(sessionDescription);
+  
+        this.fire(RTCChannelEventType.PEER_LOCAL_DESCRIPTION_SET, socketId, sessionDescription);
+      }
     }
 
     Logger.info(`Added peer '${socketId}'`);
@@ -104,10 +101,8 @@ export default class RTCChannel extends EventEmitter<RTCChannelEventConfiguratio
         peerConnection.setRemoteDescription(remoteSessionDescription)
       ];
 
-      if (remoteSessionDescription.type === "offer") {
-        if (peerConnection.signalingState !== "stable") {
-          promises.splice(0, 0, peerConnection.setLocalDescription({ type: "rollback" }));
-        }
+      if (remoteSessionDescription.type === "offer" && peerConnection.signalingState !== "stable") {
+        promises.splice(0, 0, peerConnection.setLocalDescription({ type: "rollback" }));
       }
 
       await Promise.all(promises);
@@ -119,31 +114,10 @@ export default class RTCChannel extends EventEmitter<RTCChannelEventConfiguratio
 
         this.fire(RTCChannelEventType.PEER_REMOTE_DESCRIPTION_SET, socketId, peerSessionDescription);
       }
-      // await peerConnection.setRemoteDescription(remoteSessionDescription);
-
-      // if (remoteSessionDescription.type === "offer") {
-      //   const peerSessionDescription = await this.createRTCAnswer(peerConnection);
-
-      //   Logger.info(`RTC remote SDP has been successfully set`);
-
-      //   this.fire(RTCChannelEventType.PEER_REMOTE_DESCRIPTION_SET, socketId, peerSessionDescription);
-      // }
     } catch (error) {
       Logger.error(`Failed to set remote session description (${error})`);
     }
   }
-
-  // private async createRTCOffer(peerConnection: RTCPeerConnection): Promise<RTCSessionDescriptionInit> {
-  //   try {
-  //     const sessionDescription = await peerConnection.createOffer();
-
-  //     await peerConnection.setLocalDescription(sessionDescription);
-
-  //     return sessionDescription;
-  //   } catch (error) {
-  //     throw new Error(`Failed to create RTC offer (${error})`);
-  //   }
-  // }
 
   private async createRTCAnswer(peerConnection: RTCPeerConnection): Promise<RTCSessionDescriptionInit> {
     try {

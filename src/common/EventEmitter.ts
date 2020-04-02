@@ -13,7 +13,7 @@ type EventHandlerType = {
 type EventHandlerCollectionType<T> = Partial<Record<keyof T, EventHandlerType[]>>;
 
 export default class EventEmitter<TConfiguration extends Partial<Record<string | number, any>>={}> {
-  private eventHandlers: EventHandlerCollectionType<TConfiguration> = {};
+  #eventHandlers: EventHandlerCollectionType<TConfiguration> = {};
 
   on<K extends keyof TConfiguration>(eventName: K, listener: EventListenerType<TConfiguration[K]>): EventEmitter<TConfiguration>;
   on<K extends keyof TConfiguration>(eventNames: K[], listener: EventListenerType<TConfiguration[K]>): EventEmitter<TConfiguration>;
@@ -50,19 +50,19 @@ export default class EventEmitter<TConfiguration extends Partial<Record<string |
   }
 
   private setupEventHandler<K extends keyof TConfiguration>(eventName: K, recurrent: boolean, listener: (...args: any[]) => void) {
-    if (!(eventName in this.eventHandlers) || !(this.eventHandlers[eventName] instanceof Array)) {
-      this.eventHandlers[eventName] = [];
+    if (!(eventName in this.#eventHandlers) || !(this.#eventHandlers[eventName] instanceof Array)) {
+      this.#eventHandlers[eventName] = [];
     }
 
-    this.eventHandlers[eventName].push({
+    this.#eventHandlers[eventName].push({
       recurrent: recurrent,
       proxy: listener,
     });
   }
 
   private fireEvent<K extends keyof TConfiguration>(eventName: K, ...args: Parameters<EventListenerType<TConfiguration[K]>>) {
-    if (eventName in this.eventHandlers && this.eventHandlers[eventName].length) {
-      const handlers = this.eventHandlers[eventName];
+    if (eventName in this.#eventHandlers && this.#eventHandlers[eventName].length) {
+      const handlers = this.#eventHandlers[eventName];
 
       for (let i = handlers.length - 1; i >= 0; i--) {
         handlers[i].proxy(...args);

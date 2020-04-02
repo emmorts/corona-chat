@@ -9,53 +9,53 @@ export default class ConsoleLogger extends AbstractLogger {
     return 'ConsoleLogger';
   }
 
-  _log(message: string, severity: LogLevel) {
+  _log(message: string, severity: LogLevel, ...optionalParams: any[]) {
     switch (severity) {
       case LogLevel.TRACE:
-        this._trace(message);
+        this._trace(message, ...optionalParams);
         break;
       case LogLevel.INFO:
-        this._info(message);
+        this._info(message, ...optionalParams);
         break;
       case LogLevel.WARN:
-        this._warn(message);
+        this._warn(message, ...optionalParams);
         break;
       case LogLevel.ERROR:
-        this._error(message);
+        this._error(message, ...optionalParams);
         break;
       default:
     }
   }
 
-  _trace(message: string) {
+  _trace(message: string, ...optionalParams: any[]) {
     if (isNode) {
-      console.log(`[TRACE] ${message}`);
+      console.log(`[TRACE] ${message}`, ...optionalParams);
     } else {
-      console.debug(message);
+      console.debug(message, ...optionalParams);
     }
   }
 
-  _info(message: string) {
+  _info(message: string, ...optionalParams: any[]) {
     if (isNode) {
-      console.log(`\x1b[36m[INFO] ${message}\x1b[0m`);
+      console.log(`\x1b[36m[INFO] ${message}\x1b[0m`, ...optionalParams);
     } else {
-      console.log(message);
+      console.log(message, ...optionalParams);
     }
   }
 
-  _warn(message: string) {
+  _warn(message: string, ...optionalParams: any[]) {
     if (isNode) {
-      console.log(`\x1b[33m[WARN] ${message}\x1b[0m`);
+      console.log(`\x1b[33m[WARN] ${message}\x1b[0m`, ...optionalParams);
     } else {
-      console.warn(message);
+      console.warn(message, ...optionalParams);
     }
   }
 
-  _error(message: string) {
+  _error(message: string, ...optionalParams: any[]) {
     if (isNode) {
-      console.log(`\x1b[31m[ERROR] ${message}\x1b[0m`);
+      console.log(`\x1b[31m[ERROR] ${message}\x1b[0m`, ...optionalParams);
     } else {
-      console.error(message);
+      console.error(message, ...optionalParams);
     }
   }
 }
