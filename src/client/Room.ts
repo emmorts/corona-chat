@@ -2,9 +2,9 @@ import { SmartMap } from "smartmap";
 import EventEmitter from "common/EventEmitter";
 import { Point } from "common/Structures";
 import Peer from "common/Peer";
-import RoomRenderer, { RendererEventType } from "client/RoomRenderer";
+import RoomRenderer, { RendererEventType } from "client/renderers/RoomRenderer";
 import { getHeuristicDistance } from "client/utils/MathUtils";
-import PeerGraphicsController from "client/PeerGraphicsController";
+import PeerRenderer from "client/renderers/PeerRenderer";
 import { ClusterPoint, findClusters, Cluster } from "client/utils/ClusterUtils";
 import { Conversation } from "client/models/Conversation";
 
@@ -21,13 +21,21 @@ interface RoomEventConfiguration {
 };
 
 export default class Room extends EventEmitter<RoomEventConfiguration> {
-  #renderer = new RoomRenderer();
+  #container: HTMLElement;
+  #renderer: RoomRenderer;
   #peers: Peer[] = [];
   #conversations: SmartMap<Conversation> = new SmartMap("hashCode");
 
-  constructor() {
+  constructor(container: HTMLElement) {
     super();
 
+    if (!container) {
+      throw new Error("Container element was not provided for Room");
+    }
+
+    this.#container = container;
+    
+    this.#renderer = new RoomRenderer(this.#container);
     this.#renderer.on(RendererEventType.LOCAL_POSITION_CHANGED, (position: Point) => this.handlePeerCellMove(position));
   }
 
@@ -35,7 +43,7 @@ export default class Room extends EventEmitter<RoomEventConfiguration> {
     return this.#peers.find(peer => peer.isOwner);
   }
 
-  addPeer(peer: Peer, graphicsController: PeerGraphicsController) {
+  addPeer(peer: Peer, graphicsController: PeerRenderer) {
     this.#peers.push(peer);
 
     this.#renderer.addPeer(peer, graphicsController);

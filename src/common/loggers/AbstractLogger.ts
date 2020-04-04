@@ -5,7 +5,7 @@ export default abstract class AbstractLogger implements ILogger {
   protected _mask: number;
   protected _next: ILogger;
 
-  get name() {
+  static get identifier() {
     return "AbstractLogger";
   }
 

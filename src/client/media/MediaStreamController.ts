@@ -1,26 +1,26 @@
 import EventEmitter from "common/EventEmitter";
 import Logger from "common/Logger";
 
-export type RTCMediaStreamConstructorOptions = MediaStreamConstraints & {
+export type MediaStreamControllerConstructorOptions = MediaStreamConstraints & {
   muted?: boolean;
   playsInline?: boolean;
 };
 
-export enum RTCMediaStreamEventType {
+export enum MediaStreamControllerEventType {
   STARTED
 };
 
-interface RTCMediaStreamEventConfiguration {
-  [RTCMediaStreamEventType.STARTED]: { (): void };
+interface MediaStreamControllerEventConfiguration {
+  [MediaStreamControllerEventType.STARTED]: { (): void };
 };
 
-export default class RTCMediaStream extends EventEmitter<RTCMediaStreamEventConfiguration> {
-  #options: RTCMediaStreamConstructorOptions;
+export default class MediaStreamController extends EventEmitter<MediaStreamControllerEventConfiguration> {
+  #options: MediaStreamControllerConstructorOptions;
   #mediaStream: MediaStream;
   #mediaElement: HTMLAudioElement | HTMLVideoElement;
   #isAttached = false;
 
-  constructor(options?: RTCMediaStreamConstructorOptions) {
+  constructor(options?: MediaStreamControllerConstructorOptions) {
     super();
 
     this.#options = {
@@ -50,20 +50,6 @@ export default class RTCMediaStream extends EventEmitter<RTCMediaStreamEventConf
     return this.#mediaElement;
   }
 
-  setMute(mute: boolean) {
-    if (this.#mediaStream) {
-      if (mute) {
-        this.#mediaElement.setAttribute("muted", "");
-        this.#mediaStream.getAudioTracks()[0].enabled = false;
-      } else {
-        this.#mediaElement.removeAttribute("muted");
-        this.#mediaStream.getAudioTracks()[0].enabled = true;
-      }
-    } else {
-      Logger.error("Failed to toggle mute - media stream not attached");
-    }
-  }
-
   getUserMedia(): Promise<MediaStream> {
     return new Promise((resolve, reject) => {
       const userMediaPromise = this._getUserMedia();
@@ -73,8 +59,8 @@ export default class RTCMediaStream extends EventEmitter<RTCMediaStreamEventConf
       } else {
         userMediaPromise
           .then(resolve)
-          .catch(() => {
-            reject(new Error("Access denied for media stream"));
+          .catch(error => {
+            reject(new Error(`Access denied for media stream (${error})`));
           })
       }
     });
@@ -90,7 +76,7 @@ export default class RTCMediaStream extends EventEmitter<RTCMediaStreamEventConf
 
     this.#isAttached = true;
 
-    this.fire(RTCMediaStreamEventType.STARTED);
+    this.fire(MediaStreamControllerEventType.STARTED);
   }
 
   remove() {

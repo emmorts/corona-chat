@@ -11,6 +11,8 @@
     "declarationMap": true,
     "baseUrl": "./",
     "outDir": "./dist/",
+    "jsx": "react",
+    "jsxFactory": "h",
     "paths": {
       "ws": [
         "./src/@types/ws",

@@ -1,4 +1,4 @@
-import SocketHandler from "client/SocketHandler";
+import SocketHandler from "client/network/SocketHandler";
 import { SSessionDescription, SAddPeer, SIceCandidate } from "common/Messages";
 import EventEmitter from "common/EventEmitter";
 import config from "common/config";
@@ -10,7 +10,7 @@ const ICE_SERVERS: RTCIceServer[] = [
   ...config.turnServers
 ];
 
-export enum RTCChannelEventType {
+export enum RTControllerEventType {
   PEER_ADDED,
   PEER_REMOVED,
   PEER_LOCAL_DESCRIPTION_SET,
@@ -18,15 +18,15 @@ export enum RTCChannelEventType {
   ICE_CANDIDATE_SET,
 };
 
-interface RTCChannelEventConfiguration {
-  [RTCChannelEventType.PEER_ADDED]: { (socketId: string, peerConnection: RTCPeerConnection, shouldCreateOffer: boolean): void };
-  [RTCChannelEventType.PEER_REMOVED]: { (socketId: string): void };
-  [RTCChannelEventType.PEER_LOCAL_DESCRIPTION_SET]: { (socketId: string, sessionDescription: RTCSessionDescriptionInit): void };
-  [RTCChannelEventType.PEER_REMOTE_DESCRIPTION_SET]: { (socketId: string, sessionDescription: RTCSessionDescriptionInit): void };
-  [RTCChannelEventType.ICE_CANDIDATE_SET]: { (socketId: string, iceCandidate: RTCIceCandidateInit): void };
+interface RTCControllerEventConfiguration {
+  [RTControllerEventType.PEER_ADDED]: { (socketId: string, peerConnection: RTCPeerConnection, shouldCreateOffer: boolean): void };
+  [RTControllerEventType.PEER_REMOVED]: { (socketId: string): void };
+  [RTControllerEventType.PEER_LOCAL_DESCRIPTION_SET]: { (socketId: string, sessionDescription: RTCSessionDescriptionInit): void };
+  [RTControllerEventType.PEER_REMOTE_DESCRIPTION_SET]: { (socketId: string, sessionDescription: RTCSessionDescriptionInit): void };
+  [RTControllerEventType.ICE_CANDIDATE_SET]: { (socketId: string, iceCandidate: RTCIceCandidateInit): void };
 };
 
-export default class RTCChannel extends EventEmitter<RTCChannelEventConfiguration> {
+export default class RTCController extends EventEmitter<RTCControllerEventConfiguration> {
   #peers: {
     [socketId: string]: RTCPeerConnection
   } = {};
@@ -69,7 +69,7 @@ export default class RTCChannel extends EventEmitter<RTCChannelEventConfiguratio
     
     peerConnection.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
       if (event.candidate) {
-        this.fire(RTCChannelEventType.ICE_CANDIDATE_SET, socketId,  {
+        this.fire(RTControllerEventType.ICE_CANDIDATE_SET, socketId,  {
           sdpMLineIndex: event.candidate.sdpMLineIndex,
           candidate: event.candidate.candidate
         });
@@ -82,13 +82,13 @@ export default class RTCChannel extends EventEmitter<RTCChannelEventConfiguratio
       if (peerConnection.signalingState === "stable") {
         await peerConnection.setLocalDescription(sessionDescription);
   
-        this.fire(RTCChannelEventType.PEER_LOCAL_DESCRIPTION_SET, socketId, sessionDescription);
+        this.fire(RTControllerEventType.PEER_LOCAL_DESCRIPTION_SET, socketId, sessionDescription);
       }
     }
 
     Logger.info(`Added peer '${socketId}'`);
 
-    this.fire(RTCChannelEventType.PEER_ADDED, socketId, peerConnection, shouldCreateOffer);
+    this.fire(RTControllerEventType.PEER_ADDED, socketId, peerConnection, shouldCreateOffer);
   }
 
   private async handleSessionDescription(message: SSessionDescription) {
@@ -112,7 +112,7 @@ export default class RTCChannel extends EventEmitter<RTCChannelEventConfiguratio
 
         Logger.info(`RTC remote SDP has been successfully set`);
 
-        this.fire(RTCChannelEventType.PEER_REMOTE_DESCRIPTION_SET, socketId, peerSessionDescription);
+        this.fire(RTControllerEventType.PEER_REMOTE_DESCRIPTION_SET, socketId, peerSessionDescription);
       }
     } catch (error) {
       Logger.error(`Failed to set remote session description (${error})`);

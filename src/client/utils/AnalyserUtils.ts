@@ -15,7 +15,7 @@ export function visualiseAnalyser(analyserNode: AnalyserNode) {
   const bufferLength = analyserNode.frequencyBinCount;
   const dataArray = new Uint8Array(bufferLength);
 
-  analyserNode.getByteTimeDomainData(dataArray);
+  analyserNode.getByteFrequencyData(dataArray);
 
   draw(canvas, canvasContext, analyserNode, dataArray);
 
@@ -27,7 +27,11 @@ function draw(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D, anal
 
   let drawVisual = requestAnimationFrame(() => draw(canvas, context, analyserNode, dataArray));
 
-  analyserNode.getByteTimeDomainData(dataArray);
+  analyserNode.getByteFrequencyData(dataArray);
+
+  // TODO
+  // const avg = dataArray.reduce((sum, value) => sum += value, 0) / dataArray.length;
+  // console.log(avg);
 
   context.fillStyle = 'rgb(200, 200, 200)';
   context.fillRect(0, 0, WIDTH, HEIGHT);

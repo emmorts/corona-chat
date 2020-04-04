@@ -5,7 +5,7 @@ const isNode = typeof window === 'undefined';
 
 export default class ConsoleLogger extends AbstractLogger {
 
-  get name() {
+  static get identifier() {
     return 'ConsoleLogger';
   }
 

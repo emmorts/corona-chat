@@ -2,7 +2,7 @@ import * as pixi from "pixi.js";
 import EventEmitter from "common/EventEmitter";
 import { Point } from "common/Structures";
 import Peer from "common/Peer";
-import PeerGraphicsController, { PeerGraphicsEventType } from "client/PeerGraphicsController";
+import PeerRenderer, { PeerRendererEventType } from "client/renderers/PeerRenderer";
 import { Conversation } from "client/models/Conversation";
 import ConversationRenderer from "client/renderers/ConversationRenderer";
 
@@ -18,14 +18,18 @@ export default class RoomRenderer extends EventEmitter<RendererEventConfiguratio
   #app: pixi.Application;
 
   #peerGraphics: {
-    [socketId: string]: PeerGraphicsController
+    [socketId: string]: PeerRenderer
   } = {};
   #conversationRenderers: ConversationRenderer[] = [];
   #backgroundContainer = new pixi.Container();
   #peerContainer = new pixi.Container();
 
-  constructor() {
+  constructor(parent: HTMLElement) {
     super();
+
+    if (!parent) {
+      throw new Error("Parent element was not provided for RoomRenderer");
+    }
 
     pixi.utils.skipHello();
 
@@ -38,7 +42,7 @@ export default class RoomRenderer extends EventEmitter<RendererEventConfiguratio
     this.#app.stage.addChild(this.#backgroundContainer);
     this.#app.stage.addChild(this.#peerContainer);
 
-    document.body.querySelector(".js-room").appendChild(this.#app.view);
+    parent.appendChild(this.#app.view);
   }
 
   addConversation(conversation: Conversation) {
@@ -58,11 +62,11 @@ export default class RoomRenderer extends EventEmitter<RendererEventConfiguratio
     }
   }
 
-  addPeer(peer: Peer, graphicsController: PeerGraphicsController) {
+  addPeer(peer: Peer, graphicsController: PeerRenderer) {
     graphicsController.drawCell(peer);
 
     if (peer.isOwner) {
-      graphicsController.on(PeerGraphicsEventType.CELL_MOVE, (position: Point) => this.fire(RendererEventType.LOCAL_POSITION_CHANGED, position));
+      graphicsController.on(PeerRendererEventType.CELL_MOVE, (position: Point) => this.fire(RendererEventType.LOCAL_POSITION_CHANGED, position));
     }
 
     this.#peerGraphics[peer.socketId] = graphicsController;

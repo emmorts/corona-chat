@@ -1,8 +1,11 @@
-import RTCMediaStream from "client/RTCMediaStream";
+import MediaStreamController from "client/media/MediaStreamController";
 import EventEmitter from "common/EventEmitter";
 import Logger from "common/Logger";
 import { Point } from "common/Structures";
 import { visualiseAnalyser } from "client/utils/AnalyserUtils";
+
+const MAX_GAIN = 2;
+const MIN_GAIN = 0;
 
 export enum PeerMediaControllerEventType {
   AUDIO_STREAM_STARTED,
@@ -25,8 +28,8 @@ interface PeerAudioFilterConfiguration {
 };
 
 export default class PeerMediaController extends EventEmitter<PeerMediaControllerEventConfiguration> {
-  #audioStream: RTCMediaStream;
-  #videoStream: RTCMediaStream;
+  #audioStream: MediaStreamController;
+  #videoStream: MediaStreamController;
   #peerAudioFilterConfigurationMap = new Map<string, PeerAudioFilterConfiguration>();
 
   get audioTracks() {
@@ -60,7 +63,7 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
   }
 
   async startLocalAudioStream() {
-    this.#audioStream = new RTCMediaStream({ muted: true, audio: true, video: false });
+    this.#audioStream = new MediaStreamController({ muted: true, audio: true, video: false });
     
     const stream = await this.#audioStream.getUserMedia();
 
@@ -80,7 +83,7 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
   }
 
   async startLocalVideoStream() {
-    this.#videoStream = new RTCMediaStream({ muted: true, audio: false, video: true });
+    this.#videoStream = new MediaStreamController({ muted: true, audio: false, video: true });
     
     const stream = await this.#videoStream.getUserMedia();
 
@@ -109,9 +112,7 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     if (this.#audioStream) {
       const audioFilterConfiguration = this.#peerAudioFilterConfigurationMap.get(socketId);
 
-      const gainMax = 2;
-      const gainMin = 0;
-      const gainValue = value * (gainMax - gainMin) / 100 + gainMin;
+      const gainValue = value * (MAX_GAIN - MIN_GAIN) / 100 + MIN_GAIN;
 
       audioFilterConfiguration.gainFilter.gain.setValueAtTime(gainValue, audioFilterConfiguration.context.currentTime);
     }
@@ -187,12 +188,12 @@ export default class PeerMediaController extends EventEmitter<PeerMediaControlle
     const isVideo = event.track.kind === "video";
 
     if (isVideo) {
-      this.#videoStream = new RTCMediaStream({ muted: false, video: true, audio: false });
+      this.#videoStream = new MediaStreamController({ muted: false, video: true, audio: false });
       this.#videoStream.attachMediaElement(stream);
 
       this.fire(PeerMediaControllerEventType.VIDEO_STREAM_STARTED, stream);
     } else {
-      this.#audioStream = new RTCMediaStream({ muted: false, video: false, audio: true });
+      this.#audioStream = new MediaStreamController({ muted: false, video: false, audio: true });
       this.#audioStream.attachMediaElement(stream);
 
       this.fire(PeerMediaControllerEventType.AUDIO_STREAM_STARTED, stream);

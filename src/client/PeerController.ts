@@ -1,14 +1,14 @@
 import { Point } from "common/Structures";
 import Peer from "common/Peer";
-import PeerMediaController, { PeerMediaControllerEventType } from "client/PeerMediaController";
-import PeerGraphicsController from "client/PeerGraphicsController";
+import PeerMediaController, { PeerMediaControllerEventType } from "client/media/PeerMediaController";
+import PeerRenderer from "client/renderers/PeerRenderer";
 import ControlsManager, { ControlItemType, ControlsManagerEventType } from "client/ControlsManager";
 
 export default class PeerController {
   #peer: Peer;
   #controlsManager: ControlsManager;
   #mediaController: PeerMediaController = new PeerMediaController();
-  #graphicsController: PeerGraphicsController = new PeerGraphicsController();
+  #graphicsController: PeerRenderer = new PeerRenderer();
 
   constructor() {
     this.#mediaController.once(PeerMediaControllerEventType.VIDEO_STREAM_STARTED, () => this.updateCameraPosition());
