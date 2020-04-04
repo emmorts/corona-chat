@@ -1,1 +1,1 @@
-web: parcel build ./src/assets/index.html && npm run start-server
+web: npm run build-client && npm run start-server
